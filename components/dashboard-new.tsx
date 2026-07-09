@@ -6,7 +6,8 @@ import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { StatsDashboard } from './stats-dashboard';
-import { getOrCreateUser, getUserProgress, updateQuestionProgress } from '@/lib/db-service';
+import { LeaderboardPanel } from './leaderboard-panel';
+import { getOrCreateUser, getUserProgress, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/supabase';
 import {
   CompletionEvent,
@@ -20,12 +21,12 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, ChevronDown, ChevronUp,
+  AlertCircle, ListTodo, TrendingUp, ChevronDown, ChevronUp, Trophy,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'analytics';
+type MainTab = 'problems' | 'todos' | 'analytics' | 'leaderboard';
 
 interface PhaseSection {
   label: string;
@@ -105,7 +106,10 @@ export function DashboardNew() {
         }
       }
       setCompletionEvents(events);
-      setDailyTodos(loadDailyTodos(userId));
+      const todos = loadDailyTodos(userId);
+      setDailyTodos(todos);
+      void syncCompletionEventsToSupabase(userId, events);
+      void syncDailyTodosToSupabase(userId, todos);
     } catch (error) {
       console.error('Error loading progress:', error);
     } finally {
@@ -147,6 +151,7 @@ export function DashboardNew() {
     if (!currentUser) return;
     setDailyTodos(todos);
     saveDailyTodos(currentUser.id, todos);
+    void syncDailyTodosToSupabase(currentUser.id, todos);
   }, [currentUser]);
 
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
@@ -422,7 +427,19 @@ export function DashboardNew() {
             <BarChart3 className="w-4 h-4" strokeWidth={1.75} />
             Analytics
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('leaderboard')}
+            className={`main-tab ${activeTab === 'leaderboard' ? 'main-tab--active' : ''}`}
+          >
+            <Trophy className="w-4 h-4" strokeWidth={1.75} />
+            Leaderboard
+          </button>
         </div>
+
+        {activeTab === 'leaderboard' && currentUser && (
+          <LeaderboardPanel currentUserId={currentUser.id} />
+        )}
 
         {activeTab === 'todos' && currentUser && (
           <DailyTodoPanel

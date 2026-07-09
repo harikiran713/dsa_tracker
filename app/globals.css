@@ -1169,3 +1169,97 @@ html.is-scrolling .progress-fill {
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
 }
+
+/* ============================================================
+   LEADERBOARD
+   ============================================================ */
+.leaderboard-you-banner {
+  border: 1px solid rgba(59,130,246,0.30);
+  background: rgba(59,130,246,0.08);
+}
+
+.leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 150ms ease;
+}
+
+.leaderboard-row--you {
+  border-color: rgba(59,130,246,0.35);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.12);
+}
+
+.leaderboard-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+}
+
+.leaderboard-rank-num {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.leaderboard-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #475569, #334155);
+  flex-shrink: 0;
+}
+
+.leaderboard-avatar--you {
+  background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+}
+
+.leaderboard-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.leaderboard-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #E2E8F0;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-stat--score {
+  color: #FCD34D;
+  font-size: 0.9375rem;
+}

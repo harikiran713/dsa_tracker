@@ -1,8 +1,49 @@
 import { supabase, User, UserProgress } from './supabase';
-import { logCompletionEvent } from './activity';
+import { CompletionEvent, DailyTodoItem, loadCompletionEvents } from './activity';
+import {
+  LeaderboardEntry,
+  LeaderboardPeriod,
+  buildLeaderboard,
+  getDifficultyScore,
+  getLeaderboardPeriodStart,
+} from './leaderboard';
+
+function logCompletionEvent(
+  userId: string,
+  questionId: number,
+  questionTitle: string,
+  questionPhase: string
+): CompletionEvent {
+  const event: CompletionEvent = {
+    id: `${userId}-${questionId}-${Date.now()}`,
+    user_id: userId,
+    question_id: questionId,
+    question_title: questionTitle,
+    question_phase: questionPhase as 'Easy' | 'Medium' | 'Hard',
+    completed_at: new Date().toISOString(),
+  };
+  const events = loadCompletionEvents(userId);
+  events.push(event);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`completion_events_${userId}`, JSON.stringify(events));
+  }
+  return event;
+}
 
 // Fallback offline user storage
 let offlineUsers: Map<string, User> = new Map();
+
+async function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T | null> {
+  try {
+    const result = await Promise.race([
+      promise,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+    return result;
+  } catch {
+    return null;
+  }
+}
 
 // User Management
 export async function getOrCreateUser(username: string): Promise<User | null> {
@@ -125,12 +166,13 @@ export async function updateQuestionProgress(
     localStorage.setItem(`progress_${userId}`, JSON.stringify(progress));
 
     if (status === 'done' && prevStatus !== 'done') {
-      logCompletionEvent(
+      const event = logCompletionEvent(
         userId,
         questionId,
         questionTitle,
         questionPhase as 'Easy' | 'Medium' | 'Hard'
       );
+      void syncCompletionEventToSupabase(event);
     }
 
     // Try to sync with Supabase
@@ -213,4 +255,161 @@ export async function resetUserProgress(userId: string): Promise<boolean> {
     console.error('Unexpected error in resetUserProgress:', error);
     return false;
   }
+}
+
+function isOnlineUserId(userId: string): boolean {
+  return !userId.startsWith('offline-');
+}
+
+export async function syncCompletionEventToSupabase(event: CompletionEvent): Promise<void> {
+  if (!isOnlineUserId(event.user_id)) return;
+  const result = await withTimeout(
+    supabase.from('completion_events').upsert(
+      [{
+        id: event.id,
+        user_id: event.user_id,
+        question_id: event.question_id,
+        question_title: event.question_title,
+        question_phase: event.question_phase,
+        completed_at: event.completed_at,
+      }],
+      { onConflict: 'id' }
+    ),
+    5000
+  );
+  if (!result) {
+    console.log('[v0] Completion event saved locally, will sync later');
+  }
+}
+
+export async function syncCompletionEventsToSupabase(
+  userId: string,
+  events: CompletionEvent[]
+): Promise<void> {
+  if (!isOnlineUserId(userId) || events.length === 0) return;
+  try {
+    const rows = events.map((e) => ({
+      id: e.id,
+      user_id: e.user_id,
+      question_id: e.question_id,
+      question_title: e.question_title,
+      question_phase: e.question_phase,
+      completed_at: e.completed_at,
+    }));
+    const result = await withTimeout(
+      supabase.from('completion_events').upsert(rows, { onConflict: 'id' }),
+      8000
+    );
+    if (!result) console.log('[v0] Bulk completion sync skipped');
+  } catch {
+    console.log('[v0] Bulk completion sync skipped');
+  }
+}
+
+export async function syncDailyTodosToSupabase(
+  userId: string,
+  todos: DailyTodoItem[]
+): Promise<void> {
+  if (!isOnlineUserId(userId)) return;
+  const deleteResult = await withTimeout(
+    supabase.from('daily_todos').delete().eq('user_id', userId),
+    5000
+  );
+  if (!deleteResult) {
+    console.log('[v0] Daily todos sync skipped');
+    return;
+  }
+  if (todos.length === 0) return;
+  const rows = todos.map((t) => ({
+    id: t.id,
+    user_id: t.user_id,
+    date: t.date,
+    text: t.text,
+    done: t.done,
+    question_id: t.question_id ?? null,
+    created_at: t.created_at,
+  }));
+  const upsertResult = await withTimeout(
+    supabase.from('daily_todos').upsert(rows, { onConflict: 'id' }),
+    8000
+  );
+  if (!upsertResult) console.log('[v0] Daily todos sync skipped');
+}
+
+function countByUser(rows: { user_id: string }[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.user_id, (map.get(row.user_id) ?? 0) + 1);
+  }
+  return map;
+}
+
+function scoreByUser(
+  rows: { user_id: string; question_phase?: string | null }[]
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const pts = getDifficultyScore(row.question_phase);
+    map.set(row.user_id, (map.get(row.user_id) ?? 0) + pts);
+  }
+  return map;
+}
+
+export async function getLeaderboard(period: LeaderboardPeriod): Promise<LeaderboardEntry[]> {
+  const start = getLeaderboardPeriodStart(period);
+  const startIso = start.toISOString();
+  const startDate = start.toISOString().slice(0, 10);
+
+  const usersResult = await withTimeout(
+    supabase.from('users').select('id, username'),
+    8000
+  );
+  if (!usersResult || usersResult.error) return [];
+
+  const users = usersResult.data ?? [];
+  if (users.length === 0) return [];
+
+  let scores = new Map<string, number>();
+  let problemCounts = new Map<string, number>();
+
+  const eventsResult = await withTimeout(
+    supabase
+      .from('completion_events')
+      .select('user_id, question_phase')
+      .gte('completed_at', startIso),
+    8000
+  );
+
+  if (eventsResult && !eventsResult.error && eventsResult.data) {
+    scores = scoreByUser(eventsResult.data);
+    problemCounts = countByUser(eventsResult.data);
+  } else {
+    const progressResult = await withTimeout(
+      supabase
+        .from('user_progress')
+        .select('user_id, question_phase')
+        .eq('status', 'done')
+        .gte('updated_at', startIso),
+      8000
+    );
+    if (progressResult?.data) {
+      scores = scoreByUser(progressResult.data);
+      problemCounts = countByUser(progressResult.data);
+    }
+  }
+
+  let todoCounts = new Map<string, number>();
+  const todosResult = await withTimeout(
+    supabase
+      .from('daily_todos')
+      .select('user_id')
+      .eq('done', true)
+      .gte('date', startDate),
+    8000
+  );
+  if (todosResult && !todosResult.error && todosResult.data) {
+    todoCounts = countByUser(todosResult.data);
+  }
+
+  return buildLeaderboard(users, scores, problemCounts, todoCounts);
 }
