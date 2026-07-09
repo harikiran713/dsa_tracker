@@ -1,4 +1,5 @@
 import { supabase, User, UserProgress } from './supabase';
+import { logCompletionEvent } from './activity';
 
 // Fallback offline user storage
 let offlineUsers: Map<string, User> = new Map();
@@ -115,12 +116,22 @@ export async function updateQuestionProgress(
     const stored = localStorage.getItem(`progress_${userId}`);
     const progress = stored ? JSON.parse(stored) : [];
     const index = progress.findIndex((p: UserProgress) => p.question_id === questionId);
+    const prevStatus = index >= 0 ? progress[index].status : null;
     if (index >= 0) {
       progress[index] = progressItem;
     } else {
       progress.push(progressItem);
     }
     localStorage.setItem(`progress_${userId}`, JSON.stringify(progress));
+
+    if (status === 'done' && prevStatus !== 'done') {
+      logCompletionEvent(
+        userId,
+        questionId,
+        questionTitle,
+        questionPhase as 'Easy' | 'Medium' | 'Hard'
+      );
+    }
 
     // Try to sync with Supabase
     try {

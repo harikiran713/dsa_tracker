@@ -4,8 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { initializeQuestions, Question } from '@/lib/questions';
 import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
+import { DailyTodoPanel } from './daily-todo-panel';
+import { StatsDashboard } from './stats-dashboard';
 import { getOrCreateUser, getUserProgress, updateQuestionProgress } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/supabase';
+import {
+  CompletionEvent,
+  DailyTodoItem,
+  loadCompletionEvents,
+  loadDailyTodos,
+  saveCompletionEvents,
+  saveDailyTodos,
+} from '@/lib/activity';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import {
@@ -15,6 +25,7 @@ import {
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
+type MainTab = 'problems' | 'todos' | 'analytics';
 
 interface PhaseSection {
   label: string;
@@ -37,6 +48,9 @@ export function DashboardNew() {
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
     () => new Set(['Medium', 'Hard'])
   );
+  const [activeTab, setActiveTab] = useState<MainTab>('problems');
+  const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
+  const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
 
   const debouncedSearch = useDebouncedValue(searchQuery, 180);
   useScrollPerformance();
@@ -72,6 +86,26 @@ export function DashboardNew() {
       const progressMap = new Map<number, UserProgress>();
       progress.forEach((p) => progressMap.set(p.question_id, p));
       setUserProgress(progressMap);
+
+      let events = loadCompletionEvents(userId);
+      if (events.length === 0) {
+        const backfill: CompletionEvent[] = progress
+          .filter((p) => p.status === 'done')
+          .map((p) => ({
+            id: `backfill-${userId}-${p.question_id}`,
+            user_id: userId,
+            question_id: p.question_id,
+            question_title: p.question_title,
+            question_phase: p.question_phase as 'Easy' | 'Medium' | 'Hard',
+            completed_at: p.updated_at,
+          }));
+        if (backfill.length > 0) {
+          events = backfill;
+          saveCompletionEvents(userId, events);
+        }
+      }
+      setCompletionEvents(events);
+      setDailyTodos(loadDailyTodos(userId));
     } catch (error) {
       console.error('Error loading progress:', error);
     } finally {
@@ -85,6 +119,7 @@ export function DashboardNew() {
     const question = questions.find((q) => q.number === numId);
     if (!question) return;
 
+    const prevStatus = userProgress.get(numId)?.status;
     const updatedProgress = new Map(userProgress);
     updatedProgress.set(numId, {
       id: `progress-${numId}`,
@@ -102,7 +137,17 @@ export function DashboardNew() {
       currentUser.id, numId, question.title, question.phase,
       newStatus, updatedProgress.get(numId)?.notes || ''
     );
+
+    if (newStatus === 'done' && prevStatus !== 'done') {
+      setCompletionEvents(loadCompletionEvents(currentUser.id));
+    }
   }, [currentUser, questions, userProgress]);
+
+  const handleTodosChange = useCallback((todos: DailyTodoItem[]) => {
+    if (!currentUser) return;
+    setDailyTodos(todos);
+    saveDailyTodos(currentUser.id, todos);
+  }, [currentUser]);
 
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
     if (!currentUser) return;
@@ -134,6 +179,9 @@ export function DashboardNew() {
     setCurrentUser(null);
     localStorage.removeItem('interview_prep_username');
     setUserProgress(new Map());
+    setCompletionEvents([]);
+    setDailyTodos([]);
+    setActiveTab('problems');
     setSearchQuery('');
     setFilterStatus('all');
     setFilterDifficulty('all');
@@ -344,10 +392,57 @@ export function DashboardNew() {
             Your Coding<br className="sm:hidden" /> Progress
           </h1>
           <p className="text-base" style={{ color: '#94A3B8' }}>
-            Track every problem, mark it done, flag for revision, and jot notes.
+            Track problems, plan daily todos, and review your activity over time.
           </p>
         </div>
 
+        {/* ── MAIN TABS ──────────────────────────────────────────── */}
+        <div className="main-tabs mb-8">
+          <button
+            type="button"
+            onClick={() => setActiveTab('problems')}
+            className={`main-tab ${activeTab === 'problems' ? 'main-tab--active' : ''}`}
+          >
+            <Code2 className="w-4 h-4" strokeWidth={1.75} />
+            Problems
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('todos')}
+            className={`main-tab ${activeTab === 'todos' ? 'main-tab--active' : ''}`}
+          >
+            <ListTodo className="w-4 h-4" strokeWidth={1.75} />
+            Daily Todo
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('analytics')}
+            className={`main-tab ${activeTab === 'analytics' ? 'main-tab--active' : ''}`}
+          >
+            <BarChart3 className="w-4 h-4" strokeWidth={1.75} />
+            Analytics
+          </button>
+        </div>
+
+        {activeTab === 'todos' && currentUser && (
+          <DailyTodoPanel
+            todos={dailyTodos}
+            onTodosChange={handleTodosChange}
+            userId={currentUser.id}
+            questions={questions}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <StatsDashboard
+            completionEvents={completionEvents}
+            dailyTodos={dailyTodos}
+            reviseCount={stats.revise}
+          />
+        )}
+
+        {activeTab === 'problems' && (
+          <>
         {/* ── STAT CARDS ─────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {statCards.map(({ label, value, icon: Icon, iconBg, iconColor, valueColor }) => (
@@ -544,8 +639,9 @@ export function DashboardNew() {
             })}
           </div>
         )}
+          </>
+        )}
 
-        {/* Footer spacer */}
         <div className="h-16" />
       </div>
     </main>
