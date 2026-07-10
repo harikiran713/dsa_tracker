@@ -66,7 +66,8 @@ export function DailyTodoReminderControls({
               )}
             </p>
             <p className="text-xs mt-1" style={{ color: '#64748B' }}>
-              Works while this tab is open. Reminders are off when you close the site.
+              Shows a full-screen alert in the app plus a Windows/system notification when allowed.
+              Works while this tab is open.
             </p>
             {statusNote && (
               <p className="text-xs mt-2" style={{ color: '#FCD34D' }}>{statusNote}</p>
@@ -77,7 +78,15 @@ export function DailyTodoReminderControls({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={onTest}
+            onClick={async () => {
+              const permission = await requestNotificationPermission();
+              if (permission === 'denied') {
+                setStatusNote('Allow notifications in browser settings for the Windows toast on screen.');
+              } else {
+                setStatusNote('');
+              }
+              onTest();
+            }}
             className="btn btn-secondary flex items-center gap-1.5"
           >
             <Volume2 className="w-4 h-4" strokeWidth={2} />

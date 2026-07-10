@@ -61,9 +61,9 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 export function showBrowserNotification(
   message: string,
   onClick?: () => void
-): void {
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
+): boolean {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
 
   try {
     const notification = new Notification('Daily Todo Reminder', {
@@ -71,17 +71,20 @@ export function showBrowserNotification(
       icon: '/favicon.ico',
       silent: true,
       tag: 'daily-todo-reminder',
+      renotify: true,
+      requireInteraction: true,
     });
 
-    if (onClick) {
-      notification.onclick = () => {
-        window.focus();
-        onClick();
-        notification.close();
-      };
-    }
+    notification.onclick = () => {
+      window.focus();
+      onClick?.();
+      notification.close();
+    };
+
+    return true;
   } catch (error) {
     console.warn('Could not show browser notification:', error);
+    return false;
   }
 }
 
@@ -112,6 +115,10 @@ export async function triggerDailyTodoReminder({
     force && pendingCount === 0
       ? 'Test reminder — no pending daily todos for today.'
       : formatReminderMessage(pendingCount);
+
+  if (force) {
+    await requestNotificationPermission();
+  }
 
   await playReminderSound();
   onToast?.(message);
