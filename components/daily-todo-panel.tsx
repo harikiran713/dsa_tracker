@@ -26,6 +26,9 @@ interface DailyTodoPanelProps {
   onTodosChange: (todos: DailyTodoItem[]) => void;
   userId: string;
   questions: Question[];
+  reminderEnabled: boolean;
+  onReminderEnabledChange: (enabled: boolean) => void;
+  onTestReminder: () => void;
 }
 
 function parseQuestionNumber(input: string): number | null {
@@ -36,7 +39,17 @@ function parseQuestionNumber(input: string): number | null {
   return null;
 }
 
-export function DailyTodoPanel({ todos, onTodosChange, userId, questions }: DailyTodoPanelProps) {
+import { DailyTodoReminderControls } from './daily-todo-reminder-controls';
+
+export function DailyTodoPanel({
+  todos,
+  onTodosChange,
+  userId,
+  questions,
+  reminderEnabled,
+  onReminderEnabledChange,
+  onTestReminder,
+}: DailyTodoPanelProps) {
   const [selectedDate, setSelectedDate] = useState(() => toDateKey());
   const [newText, setNewText] = useState('');
   const [questionNumber, setQuestionNumber] = useState('');
@@ -138,6 +151,14 @@ export function DailyTodoPanel({ todos, onTodosChange, userId, questions }: Dail
 
   return (
     <div className="daily-todo-panel">
+      <DailyTodoReminderControls
+        userId={userId}
+        todos={todos}
+        enabled={reminderEnabled}
+        onEnabledChange={onReminderEnabledChange}
+        onTest={onTestReminder}
+      />
+
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-2">

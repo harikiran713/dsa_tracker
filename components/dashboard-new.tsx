@@ -21,6 +21,9 @@ import {
 } from '@/lib/activity';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
+import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
+import { DailyTodoReminderToast } from './daily-todo-reminder-toast';
+import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy,
@@ -43,6 +46,8 @@ export function DashboardNew() {
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
   const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderToast, setReminderToast] = useState<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchQuery, 180);
   useScrollPerformance();
@@ -125,7 +130,10 @@ export function DashboardNew() {
         setCurrentUser(user);
         localStorage.setItem('interview_prep_username', username);
         setLoadedTabs(new Set(['problems']));
+        setReminderEnabled(getInitialReminderEnabled(user.id));
+        setDailyTodos(loadDailyTodos(user.id));
         await loadProblemsData(user.id);
+        void loadTodosData(user.id);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -218,11 +226,37 @@ export function DashboardNew() {
     setCompletionEvents([]);
     setDailyTodos([]);
     setLoadedTabs(new Set());
+    setReminderEnabled(false);
+    setReminderToast(null);
     setActiveTab('problems');
     setSearchQuery('');
     setFilterStatus('all');
     setFilterDifficulty('all');
   };
+
+  const showReminderToast = useCallback((message: string) => {
+    setReminderToast(message);
+    window.setTimeout(() => setReminderToast(null), 8000);
+  }, []);
+
+  const openTodosTab = useCallback(() => {
+    setActiveTab('todos');
+    if (currentUser && !loadedTabs.has('todos')) {
+      setLoadedTabs((prev) => new Set(prev).add('todos'));
+      void loadTodosData(currentUser.id);
+    }
+  }, [currentUser, loadedTabs]);
+
+  const { runReminder } = useDailyTodoReminder({
+    userId: currentUser?.id ?? null,
+    enabled: reminderEnabled,
+    onToast: showReminderToast,
+    onNavigateTodos: openTodosTab,
+  });
+
+  const handleTestReminder = useCallback(() => {
+    void runReminder(true);
+  }, [runReminder]);
 
   const questionsWithProgress = useMemo(
     () =>
@@ -446,6 +480,9 @@ export function DashboardNew() {
             onTodosChange={handleTodosChange}
             userId={currentUser.id}
             questions={questions}
+            reminderEnabled={reminderEnabled}
+            onReminderEnabledChange={setReminderEnabled}
+            onTestReminder={handleTestReminder}
           />
         )}
 
@@ -600,6 +637,12 @@ export function DashboardNew() {
 
         <div className="h-16" />
       </div>
+
+      <DailyTodoReminderToast
+        message={reminderToast}
+        onDismiss={() => setReminderToast(null)}
+        onOpenTodos={openTodosTab}
+      />
     </main>
   );
 }
