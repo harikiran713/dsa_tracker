@@ -33,6 +33,10 @@ CREATE POLICY "Users can read their own data" ON users
   FOR SELECT
   USING (true);
 
+CREATE POLICY "Anyone can insert users" ON users
+  FOR INSERT
+  WITH CHECK (true);
+
 -- RLS policies for user_progress table
 CREATE POLICY "Users can read their own progress" ON user_progress
   FOR SELECT

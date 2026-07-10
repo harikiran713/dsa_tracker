@@ -48,38 +48,32 @@ async function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T | null>
 // User Management
 export async function getOrCreateUser(username: string): Promise<User | null> {
   try {
-    // First try Supabase
     try {
-      // Check if user exists
-      const { data: existingUser, error: selectError } = await Promise.race([
-        supabase
-          .from('users')
-          .select('*')
-          .eq('username', username)
-          .single(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-      ]);
+      const existingResult = await withTimeout(
+        supabase.from('users').select('*').eq('username', username).single(),
+        8000
+      );
 
-      if (!selectError) {
-        return existingUser as User;
+      if (existingResult && !existingResult.error && existingResult.data) {
+        return existingResult.data as User;
       }
 
-      if (selectError && selectError.code !== 'PGRST116') {
-        console.warn('Warning checking user in Supabase:', selectError.message);
+      if (existingResult?.error && existingResult.error.code !== 'PGRST116') {
+        console.warn('Warning checking user in Supabase:', existingResult.error.message);
       }
 
-      // Try to create new user
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert([{ username }])
-        .select()
-        .single();
+      const insertResult = await withTimeout(
+        supabase.from('users').insert([{ username }]).select().single(),
+        8000
+      );
 
-      if (!insertError) {
-        return newUser as User;
+      if (insertResult && !insertResult.error && insertResult.data) {
+        return insertResult.data as User;
       }
-      
-      console.warn('Could not insert user to Supabase, using offline mode');
+
+      if (insertResult?.error) {
+        console.warn('Could not insert user to Supabase:', insertResult.error.message);
+      }
     } catch (supabaseError) {
       console.log('[v0] Supabase offline, using local storage mode');
     }
@@ -104,32 +98,105 @@ export async function getOrCreateUser(username: string): Promise<User | null> {
   }
 }
 
+function isOnlineUserId(userId: string): boolean {
+  return !userId.startsWith('offline-');
+}
+
+function toProgressRow(
+  userId: string,
+  questionId: number,
+  questionTitle: string,
+  questionPhase: string,
+  status: 'todo' | 'done' | 'revise',
+  notes: string,
+  updatedAt: string
+) {
+  return {
+    user_id: userId,
+    question_id: questionId,
+    question_title: questionTitle,
+    question_phase: questionPhase,
+    status,
+    notes,
+    updated_at: updatedAt,
+  };
+}
+
+function mergeProgress(local: UserProgress[], remote: UserProgress[]): UserProgress[] {
+  const merged = new Map<number, UserProgress>();
+  for (const item of remote) merged.set(item.question_id, item);
+  for (const item of local) {
+    const existing = merged.get(item.question_id);
+    if (!existing || new Date(item.updated_at) >= new Date(existing.updated_at)) {
+      merged.set(item.question_id, item);
+    }
+  }
+  return [...merged.values()].sort((a, b) => a.question_id - b.question_id);
+}
+
+export async function syncProgressBatchToSupabase(
+  userId: string,
+  progress: UserProgress[]
+): Promise<void> {
+  if (!isOnlineUserId(userId) || progress.length === 0) return;
+
+  const rows = progress.map((p) =>
+    toProgressRow(
+      userId,
+      p.question_id,
+      p.question_title ?? '',
+      p.question_phase ?? 'Easy',
+      p.status,
+      p.notes,
+      p.updated_at
+    )
+  );
+
+  const result = await withTimeout(
+    supabase.from('user_progress').upsert(rows, { onConflict: 'user_id,question_id' }),
+    10000
+  );
+
+  if (result?.error) {
+    console.warn('[v0] Progress batch sync failed:', result.error.message);
+  }
+}
+
 // Progress Management
 export async function getUserProgress(userId: string): Promise<UserProgress[]> {
   try {
-    try {
-      const { data, error } = await Promise.race([
-        supabase
-          .from('user_progress')
-          .select('*')
-          .eq('user_id', userId)
-          .order('question_id', { ascending: true }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-      ]);
+    const stored = localStorage.getItem(`progress_${userId}`);
+    const localProgress: UserProgress[] = stored ? JSON.parse(stored) : [];
 
-      if (!error) {
-        return (data || []) as UserProgress[];
-      }
-    } catch (err) {
-      console.log('[v0] Using offline progress storage');
+    const remoteResult = await withTimeout(
+      supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .order('question_id', { ascending: true }),
+      8000
+    );
+
+    const remoteProgress =
+      remoteResult && !remoteResult.error && remoteResult.data
+        ? (remoteResult.data as UserProgress[])
+        : [];
+
+    const merged = mergeProgress(localProgress, remoteProgress);
+
+    if (merged.length > 0) {
+      localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
     }
 
-    // Fallback: get from localStorage
-    const stored = localStorage.getItem(`progress_${userId}`);
-    return stored ? JSON.parse(stored) : [];
+    if (isOnlineUserId(userId) && merged.length > 0) {
+      void syncProgressBatchToSupabase(userId, merged);
+    }
+
+    return merged;
   } catch (error) {
     console.error('Unexpected error in getUserProgress:', error);
-    return [];
+    const stored = localStorage.getItem(`progress_${userId}`);
+    return stored ? JSON.parse(stored) : [];
   }
 }
 
@@ -142,6 +209,7 @@ export async function updateQuestionProgress(
   notes: string
 ): Promise<boolean> {
   try {
+    const updatedAt = new Date().toISOString();
     const progressItem: UserProgress = {
       id: `${userId}-${questionId}`,
       user_id: userId,
@@ -150,10 +218,9 @@ export async function updateQuestionProgress(
       question_phase: questionPhase,
       status,
       notes,
-      updated_at: new Date().toISOString(),
+      updated_at: updatedAt,
     };
 
-    // Save to localStorage first (for immediate availability)
     const stored = localStorage.getItem(`progress_${userId}`);
     const progress = stored ? JSON.parse(stored) : [];
     const index = progress.findIndex((p: UserProgress) => p.question_id === questionId);
@@ -175,16 +242,25 @@ export async function updateQuestionProgress(
       void syncCompletionEventToSupabase(event);
     }
 
-    // Try to sync with Supabase
-    try {
-      await Promise.race([
+    if (isOnlineUserId(userId)) {
+      const row = toProgressRow(
+        userId,
+        questionId,
+        questionTitle,
+        questionPhase,
+        status,
+        notes,
+        updatedAt
+      );
+      const result = await withTimeout(
         supabase
           .from('user_progress')
-          .upsert([progressItem], { onConflict: 'user_id,question_id' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-      ]);
-    } catch (err) {
-      console.log('[v0] Progress saved offline, will sync when connection available');
+          .upsert([row], { onConflict: 'user_id,question_id' }),
+        8000
+      );
+      if (result?.error) {
+        console.warn('[v0] Supabase progress save failed:', result.error.message);
+      }
     }
 
     return true;
@@ -257,10 +333,6 @@ export async function resetUserProgress(userId: string): Promise<boolean> {
   }
 }
 
-function isOnlineUserId(userId: string): boolean {
-  return !userId.startsWith('offline-');
-}
-
 export async function syncCompletionEventToSupabase(event: CompletionEvent): Promise<void> {
   if (!isOnlineUserId(event.user_id)) return;
   const result = await withTimeout(
@@ -279,6 +351,8 @@ export async function syncCompletionEventToSupabase(event: CompletionEvent): Pro
   );
   if (!result) {
     console.log('[v0] Completion event saved locally, will sync later');
+  } else if (result.error) {
+    console.warn('[v0] Completion event sync failed:', result.error.message);
   }
 }
 
