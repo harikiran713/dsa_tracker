@@ -1,12 +1,11 @@
-import { supabase, User, UserProgress } from './supabase';
+import { User, UserProgress } from './types';
 import { CompletionEvent, DailyTodoItem, loadCompletionEvents } from './activity';
 import {
   LeaderboardEntry,
   LeaderboardPeriod,
-  buildLeaderboard,
-  getDifficultyScore,
-  getLeaderboardPeriodStart,
 } from './leaderboard';
+
+export type { User, UserProgress };
 
 function logCompletionEvent(
   userId: string,
@@ -30,70 +29,20 @@ function logCompletionEvent(
   return event;
 }
 
-// Fallback offline user storage
 let offlineUsers: Map<string, User> = new Map();
 
-async function withTimeout<T>(promise: Promise<T>, ms = 8000): Promise<T | null> {
+async function apiJson<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
-    const result = await Promise.race([
-      promise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-    ]);
-    return result;
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch {
-    return null;
-  }
-}
-
-// User Management
-export async function getOrCreateUser(username: string): Promise<User | null> {
-  try {
-    try {
-      const existingResult = await withTimeout(
-        supabase.from('users').select('*').eq('username', username).single(),
-        8000
-      );
-
-      if (existingResult && !existingResult.error && existingResult.data) {
-        return existingResult.data as User;
-      }
-
-      if (existingResult?.error && existingResult.error.code !== 'PGRST116') {
-        console.warn('Warning checking user in Supabase:', existingResult.error.message);
-      }
-
-      const insertResult = await withTimeout(
-        supabase.from('users').insert([{ username }]).select().single(),
-        8000
-      );
-
-      if (insertResult && !insertResult.error && insertResult.data) {
-        return insertResult.data as User;
-      }
-
-      if (insertResult?.error) {
-        console.warn('Could not insert user to Supabase:', insertResult.error.message);
-      }
-    } catch (supabaseError) {
-      console.log('[v0] Supabase offline, using local storage mode');
-    }
-
-    // Fallback: use offline storage
-    if (offlineUsers.has(username)) {
-      return offlineUsers.get(username)!;
-    }
-
-    const newUser: User = {
-      id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      username,
-      created_at: new Date().toISOString(),
-    };
-
-    offlineUsers.set(username, newUser);
-    localStorage.setItem('offline_users', JSON.stringify(Array.from(offlineUsers.entries())));
-    return newUser;
-  } catch (error) {
-    console.error('Unexpected error in getOrCreateUser:', error);
     return null;
   }
 }
@@ -134,13 +83,43 @@ function mergeProgress(local: UserProgress[], remote: UserProgress[]): UserProgr
   return [...merged.values()].sort((a, b) => a.question_id - b.question_id);
 }
 
+export async function getOrCreateUser(username: string): Promise<User | null> {
+  try {
+    const user = await apiJson<User>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+
+    if (user) return user;
+
+    if (offlineUsers.has(username)) {
+      return offlineUsers.get(username)!;
+    }
+
+    const newUser: User = {
+      id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      username,
+      created_at: new Date().toISOString(),
+    };
+
+    offlineUsers.set(username, newUser);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('offline_users', JSON.stringify(Array.from(offlineUsers.entries())));
+    }
+    return newUser;
+  } catch (error) {
+    console.error('Unexpected error in getOrCreateUser:', error);
+    return null;
+  }
+}
+
 export async function syncProgressBatchToSupabase(
   userId: string,
   progress: UserProgress[]
 ): Promise<void> {
   if (!isOnlineUserId(userId) || progress.length === 0) return;
 
-  const rows = progress.map((p) =>
+  const items = progress.map((p) =>
     toProgressRow(
       userId,
       p.question_id,
@@ -152,35 +131,23 @@ export async function syncProgressBatchToSupabase(
     )
   );
 
-  const result = await withTimeout(
-    supabase.from('user_progress').upsert(rows, { onConflict: 'user_id,question_id' }),
-    10000
-  );
+  const result = await apiJson<{ ok: boolean }>('/api/progress', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
 
-  if (result?.error) {
-    console.warn('[v0] Progress batch sync failed:', result.error.message);
+  if (!result) {
+    console.warn('[v0] Progress batch sync failed');
   }
 }
 
-// Progress Management
 export async function getUserProgress(userId: string): Promise<UserProgress[]> {
   try {
     const stored = localStorage.getItem(`progress_${userId}`);
     const localProgress: UserProgress[] = stored ? JSON.parse(stored) : [];
 
-    const remoteResult = await withTimeout(
-      supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .order('question_id', { ascending: true }),
-      8000
-    );
-
     const remoteProgress =
-      remoteResult && !remoteResult.error && remoteResult.data
-        ? (remoteResult.data as UserProgress[])
-        : [];
+      (await apiJson<UserProgress[]>(`/api/progress?userId=${encodeURIComponent(userId)}`)) ?? [];
 
     const merged = mergeProgress(localProgress, remoteProgress);
 
@@ -243,23 +210,14 @@ export async function updateQuestionProgress(
     }
 
     if (isOnlineUserId(userId)) {
-      const row = toProgressRow(
-        userId,
-        questionId,
-        questionTitle,
-        questionPhase,
-        status,
-        notes,
-        updatedAt
-      );
-      const result = await withTimeout(
-        supabase
-          .from('user_progress')
-          .upsert([row], { onConflict: 'user_id,question_id' }),
-        8000
-      );
-      if (result?.error) {
-        console.warn('[v0] Supabase progress save failed:', result.error.message);
+      const result = await apiJson<{ ok: boolean }>('/api/progress', {
+        method: 'POST',
+        body: JSON.stringify(
+          toProgressRow(userId, questionId, questionTitle, questionPhase, status, notes, updatedAt)
+        ),
+      });
+      if (!result) {
+        console.warn('[v0] MongoDB progress save failed');
       }
     }
 
@@ -274,40 +232,17 @@ export async function getQuestionProgress(
   userId: string,
   questionId: number
 ): Promise<UserProgress | null> {
-  try {
-    const { data, error } = await supabase
-      .from('user_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('question_id', questionId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching question progress:', error);
-      return null;
-    }
-
-    return (data || null) as UserProgress | null;
-  } catch (error) {
-    console.error('Unexpected error in getQuestionProgress:', error);
-    return null;
-  }
+  const all = await getUserProgress(userId);
+  return all.find((p) => p.question_id === questionId) ?? null;
 }
 
 export async function deleteUserProgress(userId: string, questionId: number): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('user_progress')
-      .delete()
-      .eq('user_id', userId)
-      .eq('question_id', questionId);
-
-    if (error) {
-      console.error('Error deleting progress:', error);
-      return false;
-    }
-
-    return true;
+    const result = await apiJson<{ ok: boolean }>(
+      `/api/progress?userId=${encodeURIComponent(userId)}&questionId=${questionId}`,
+      { method: 'DELETE' }
+    );
+    return Boolean(result?.ok);
   } catch (error) {
     console.error('Unexpected error in deleteUserProgress:', error);
     return false;
@@ -316,17 +251,11 @@ export async function deleteUserProgress(userId: string, questionId: number): Pr
 
 export async function resetUserProgress(userId: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('user_progress')
-      .delete()
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error resetting progress:', error);
-      return false;
-    }
-
-    return true;
+    const result = await apiJson<{ ok: boolean }>(
+      `/api/progress?userId=${encodeURIComponent(userId)}`,
+      { method: 'DELETE' }
+    );
+    return Boolean(result?.ok);
   } catch (error) {
     console.error('Unexpected error in resetUserProgress:', error);
     return false;
@@ -335,24 +264,12 @@ export async function resetUserProgress(userId: string): Promise<boolean> {
 
 export async function syncCompletionEventToSupabase(event: CompletionEvent): Promise<void> {
   if (!isOnlineUserId(event.user_id)) return;
-  const result = await withTimeout(
-    supabase.from('completion_events').upsert(
-      [{
-        id: event.id,
-        user_id: event.user_id,
-        question_id: event.question_id,
-        question_title: event.question_title,
-        question_phase: event.question_phase,
-        completed_at: event.completed_at,
-      }],
-      { onConflict: 'id' }
-    ),
-    5000
-  );
+  const result = await apiJson<{ ok: boolean }>('/api/completion-events', {
+    method: 'POST',
+    body: JSON.stringify({ event }),
+  });
   if (!result) {
     console.log('[v0] Completion event saved locally, will sync later');
-  } else if (result.error) {
-    console.warn('[v0] Completion event sync failed:', result.error.message);
   }
 }
 
@@ -361,23 +278,11 @@ export async function syncCompletionEventsToSupabase(
   events: CompletionEvent[]
 ): Promise<void> {
   if (!isOnlineUserId(userId) || events.length === 0) return;
-  try {
-    const rows = events.map((e) => ({
-      id: e.id,
-      user_id: e.user_id,
-      question_id: e.question_id,
-      question_title: e.question_title,
-      question_phase: e.question_phase,
-      completed_at: e.completed_at,
-    }));
-    const result = await withTimeout(
-      supabase.from('completion_events').upsert(rows, { onConflict: 'id' }),
-      8000
-    );
-    if (!result) console.log('[v0] Bulk completion sync skipped');
-  } catch {
-    console.log('[v0] Bulk completion sync skipped');
-  }
+  const result = await apiJson<{ ok: boolean }>('/api/completion-events', {
+    method: 'POST',
+    body: JSON.stringify({ events }),
+  });
+  if (!result) console.log('[v0] Bulk completion sync skipped');
 }
 
 export async function syncDailyTodosToSupabase(
@@ -385,105 +290,16 @@ export async function syncDailyTodosToSupabase(
   todos: DailyTodoItem[]
 ): Promise<void> {
   if (!isOnlineUserId(userId)) return;
-  const deleteResult = await withTimeout(
-    supabase.from('daily_todos').delete().eq('user_id', userId),
-    5000
-  );
-  if (!deleteResult) {
-    console.log('[v0] Daily todos sync skipped');
-    return;
-  }
-  if (todos.length === 0) return;
-  const rows = todos.map((t) => ({
-    id: t.id,
-    user_id: t.user_id,
-    date: t.date,
-    text: t.text,
-    done: t.done,
-    question_id: t.question_id ?? null,
-    created_at: t.created_at,
-  }));
-  const upsertResult = await withTimeout(
-    supabase.from('daily_todos').upsert(rows, { onConflict: 'id' }),
-    8000
-  );
-  if (!upsertResult) console.log('[v0] Daily todos sync skipped');
-}
-
-function countByUser(rows: { user_id: string }[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const row of rows) {
-    map.set(row.user_id, (map.get(row.user_id) ?? 0) + 1);
-  }
-  return map;
-}
-
-function scoreByUser(
-  rows: { user_id: string; question_phase?: string | null }[]
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const row of rows) {
-    const pts = getDifficultyScore(row.question_phase);
-    map.set(row.user_id, (map.get(row.user_id) ?? 0) + pts);
-  }
-  return map;
+  const result = await apiJson<{ ok: boolean }>('/api/daily-todos', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, todos }),
+  });
+  if (!result) console.log('[v0] Daily todos sync skipped');
 }
 
 export async function getLeaderboard(period: LeaderboardPeriod): Promise<LeaderboardEntry[]> {
-  const start = getLeaderboardPeriodStart(period);
-  const startIso = start.toISOString();
-  const startDate = start.toISOString().slice(0, 10);
-
-  const usersResult = await withTimeout(
-    supabase.from('users').select('id, username'),
-    8000
+  const result = await apiJson<LeaderboardEntry[]>(
+    `/api/leaderboard?period=${encodeURIComponent(period)}`
   );
-  if (!usersResult || usersResult.error) return [];
-
-  const users = usersResult.data ?? [];
-  if (users.length === 0) return [];
-
-  let scores = new Map<string, number>();
-  let problemCounts = new Map<string, number>();
-
-  const eventsResult = await withTimeout(
-    supabase
-      .from('completion_events')
-      .select('user_id, question_phase')
-      .gte('completed_at', startIso),
-    8000
-  );
-
-  if (eventsResult && !eventsResult.error && eventsResult.data) {
-    scores = scoreByUser(eventsResult.data);
-    problemCounts = countByUser(eventsResult.data);
-  } else {
-    const progressResult = await withTimeout(
-      supabase
-        .from('user_progress')
-        .select('user_id, question_phase')
-        .eq('status', 'done')
-        .gte('updated_at', startIso),
-      8000
-    );
-    if (progressResult?.data) {
-      scores = scoreByUser(progressResult.data);
-      problemCounts = countByUser(progressResult.data);
-    }
-  }
-
-  let todoCounts = new Map<string, number>();
-  const todosResult = await withTimeout(
-    supabase
-      .from('daily_todos')
-      .select('user_id')
-      .eq('done', true)
-      .gte('date', startDate),
-    8000
-  );
-  if (todosResult && !todosResult.error && todosResult.data) {
-    todoCounts = countByUser(todosResult.data);
-  }
-
-  return buildLeaderboard(users, scores, problemCounts, todoCounts);
+  return result ?? [];
 }

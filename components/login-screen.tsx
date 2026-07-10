@@ -32,7 +32,7 @@ export function LoginScreen({ onLogin, isLoading = false }: LoginScreenProps) {
     { icon: BookOpen,    label: '323 Curated Problems', color: '#60A5FA' },
     { icon: Target,      label: 'Track Your Progress',  color: '#4ADE80' },
     { icon: Zap,         label: 'Easy · Medium · Hard',  color: '#C4B5FD' },
-    { icon: CheckCircle2, label: 'Sync via Supabase',   color: '#FCD34D' },
+    { icon: CheckCircle2, label: 'Sync via MongoDB',   color: '#FCD34D' },
   ];
 
   return (
