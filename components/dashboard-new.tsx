@@ -7,8 +7,8 @@ import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
-import { getOrCreateUser, getUserProgress, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase } from '@/lib/db-service';
-import { User, UserProgress } from '@/lib/supabase';
+import { getOrCreateUser, getUserProgress, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase, loadDailyTodosFromDb } from '@/lib/db-service';
+import { User, UserProgress } from '@/lib/types';
 import {
   CompletionEvent,
   DailyTodoItem,
@@ -106,7 +106,7 @@ export function DashboardNew() {
         }
       }
       setCompletionEvents(events);
-      const todos = loadDailyTodos(userId);
+      const todos = await loadDailyTodosFromDb(userId);
       setDailyTodos(todos);
       void syncCompletionEventsToSupabase(userId, events);
       void syncDailyTodosToSupabase(userId, todos);

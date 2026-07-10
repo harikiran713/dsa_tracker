@@ -1,11 +1,13 @@
 import { User, UserProgress } from './types';
-import { CompletionEvent, DailyTodoItem, loadCompletionEvents } from './activity';
+import { CompletionEvent, DailyTodoItem, loadCompletionEvents, loadDailyTodos, saveDailyTodos } from './activity';
 import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
 
 export type { User, UserProgress };
+
+const USER_CACHE_KEY = 'interview_prep_user_cache';
 
 function logCompletionEvent(
   userId: string,
@@ -29,7 +31,50 @@ function logCompletionEvent(
   return event;
 }
 
-let offlineUsers: Map<string, User> = new Map();
+function loadUserCache(): Record<string, User> {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(USER_CACHE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveUserToCache(user: User): void {
+  if (typeof window === 'undefined') return;
+  const cache = loadUserCache();
+  cache[user.username] = user;
+  localStorage.setItem(USER_CACHE_KEY, JSON.stringify(cache));
+  localStorage.setItem('interview_prep_user_id', user.id);
+}
+
+function migrateLocalUserData(oldUserId: string, newUserId: string): void {
+  if (!oldUserId || oldUserId === newUserId || typeof window === 'undefined') return;
+
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_']) {
+    const oldKey = `${prefix}${oldUserId}`;
+    const newKey = `${prefix}${newUserId}`;
+    const oldData = localStorage.getItem(oldKey);
+    if (!oldData) continue;
+
+    const existing = localStorage.getItem(newKey);
+    if (!existing) {
+      localStorage.setItem(newKey, oldData);
+    } else if (prefix === 'progress_') {
+      try {
+        const merged = mergeProgress(JSON.parse(oldData), JSON.parse(existing));
+        localStorage.setItem(newKey, JSON.stringify(merged));
+      } catch {
+        // keep existing
+      }
+    }
+    localStorage.removeItem(oldKey);
+  }
+}
+
+function getCachedUser(username: string): User | null {
+  return loadUserCache()[username] ?? null;
+}
 
 async function apiJson<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
@@ -40,9 +85,14 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T | null>
         ...options?.headers,
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[api] ${options?.method ?? 'GET'} ${url} failed: ${res.status}`, text);
+      return null;
+    }
     return (await res.json()) as T;
-  } catch {
+  } catch (error) {
+    console.warn(`[api] ${options?.method ?? 'GET'} ${url} error:`, error);
     return null;
   }
 }
@@ -83,18 +133,38 @@ function mergeProgress(local: UserProgress[], remote: UserProgress[]): UserProgr
   return [...merged.values()].sort((a, b) => a.question_id - b.question_id);
 }
 
+function mergeTodos(local: DailyTodoItem[], remote: DailyTodoItem[]): DailyTodoItem[] {
+  const merged = new Map<string, DailyTodoItem>();
+  for (const item of remote) merged.set(item.id, item);
+  for (const item of local) {
+    const existing = merged.get(item.id);
+    if (!existing || item.created_at >= existing.created_at) {
+      merged.set(item.id, item);
+    }
+  }
+  return [...merged.values()];
+}
+
 export async function getOrCreateUser(username: string): Promise<User | null> {
   try {
+    const previousId =
+      typeof window !== 'undefined' ? localStorage.getItem('interview_prep_user_id') : null;
+
     const user = await apiJson<User>('/api/users', {
       method: 'POST',
       body: JSON.stringify({ username }),
     });
 
-    if (user) return user;
-
-    if (offlineUsers.has(username)) {
-      return offlineUsers.get(username)!;
+    if (user) {
+      if (previousId && previousId !== user.id) {
+        migrateLocalUserData(previousId, user.id);
+      }
+      saveUserToCache(user);
+      return user;
     }
+
+    const cached = getCachedUser(username);
+    if (cached) return cached;
 
     const newUser: User = {
       id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -102,14 +172,11 @@ export async function getOrCreateUser(username: string): Promise<User | null> {
       created_at: new Date().toISOString(),
     };
 
-    offlineUsers.set(username, newUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('offline_users', JSON.stringify(Array.from(offlineUsers.entries())));
-    }
+    saveUserToCache(newUser);
     return newUser;
   } catch (error) {
     console.error('Unexpected error in getOrCreateUser:', error);
-    return null;
+    return getCachedUser(username);
   }
 }
 
@@ -131,14 +198,10 @@ export async function syncProgressBatchToSupabase(
     )
   );
 
-  const result = await apiJson<{ ok: boolean }>('/api/progress', {
+  await apiJson<{ ok: boolean }>('/api/progress', {
     method: 'POST',
     body: JSON.stringify({ items }),
   });
-
-  if (!result) {
-    console.warn('[v0] Progress batch sync failed');
-  }
 }
 
 export async function getUserProgress(userId: string): Promise<UserProgress[]> {
@@ -151,9 +214,7 @@ export async function getUserProgress(userId: string): Promise<UserProgress[]> {
 
     const merged = mergeProgress(localProgress, remoteProgress);
 
-    if (merged.length > 0) {
-      localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
-    }
+    localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
 
     if (isOnlineUserId(userId) && merged.length > 0) {
       void syncProgressBatchToSupabase(userId, merged);
@@ -189,8 +250,8 @@ export async function updateQuestionProgress(
     };
 
     const stored = localStorage.getItem(`progress_${userId}`);
-    const progress = stored ? JSON.parse(stored) : [];
-    const index = progress.findIndex((p: UserProgress) => p.question_id === questionId);
+    const progress: UserProgress[] = stored ? JSON.parse(stored) : [];
+    const index = progress.findIndex((p) => p.question_id === questionId);
     const prevStatus = index >= 0 ? progress[index].status : null;
     if (index >= 0) {
       progress[index] = progressItem;
@@ -217,7 +278,7 @@ export async function updateQuestionProgress(
         ),
       });
       if (!result) {
-        console.warn('[v0] MongoDB progress save failed');
+        console.warn('[v0] MongoDB progress save failed — kept in localStorage');
       }
     }
 
@@ -264,13 +325,10 @@ export async function resetUserProgress(userId: string): Promise<boolean> {
 
 export async function syncCompletionEventToSupabase(event: CompletionEvent): Promise<void> {
   if (!isOnlineUserId(event.user_id)) return;
-  const result = await apiJson<{ ok: boolean }>('/api/completion-events', {
+  await apiJson<{ ok: boolean }>('/api/completion-events', {
     method: 'POST',
     body: JSON.stringify({ event }),
   });
-  if (!result) {
-    console.log('[v0] Completion event saved locally, will sync later');
-  }
 }
 
 export async function syncCompletionEventsToSupabase(
@@ -278,11 +336,21 @@ export async function syncCompletionEventsToSupabase(
   events: CompletionEvent[]
 ): Promise<void> {
   if (!isOnlineUserId(userId) || events.length === 0) return;
-  const result = await apiJson<{ ok: boolean }>('/api/completion-events', {
+  await apiJson<{ ok: boolean }>('/api/completion-events', {
     method: 'POST',
     body: JSON.stringify({ events }),
   });
-  if (!result) console.log('[v0] Bulk completion sync skipped');
+}
+
+export async function loadDailyTodosFromDb(userId: string): Promise<DailyTodoItem[]> {
+  const local = loadDailyTodos(userId);
+  const remote =
+    (await apiJson<DailyTodoItem[]>(
+      `/api/daily-todos?userId=${encodeURIComponent(userId)}`
+    )) ?? [];
+  const merged = mergeTodos(local, remote);
+  saveDailyTodos(userId, merged);
+  return merged;
 }
 
 export async function syncDailyTodosToSupabase(
@@ -290,11 +358,10 @@ export async function syncDailyTodosToSupabase(
   todos: DailyTodoItem[]
 ): Promise<void> {
   if (!isOnlineUserId(userId)) return;
-  const result = await apiJson<{ ok: boolean }>('/api/daily-todos', {
+  await apiJson<{ ok: boolean }>('/api/daily-todos', {
     method: 'PUT',
     body: JSON.stringify({ userId, todos }),
   });
-  if (!result) console.log('[v0] Daily todos sync skipped');
 }
 
 export async function getLeaderboard(period: LeaderboardPeriod): Promise<LeaderboardEntry[]> {

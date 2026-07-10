@@ -1,6 +1,8 @@
 import { MongoClient, Db } from 'mongodb';
 
-const dbName = process.env.MONGODB_DB_NAME || 'dsa_tracker';
+const MONGODB_URI =
+  'mongodb+srv://lodeharikiran_db_user:L7RcRnCX7yzudKDr@dsaapp.oef7ffb.mongodb.net/';
+const DB_NAME = 'dsa_tracker';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -8,20 +10,15 @@ declare global {
 }
 
 function getClientPromise(): Promise<MongoClient> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    throw new Error('Missing MONGODB_URI environment variable');
-  }
-
   if (process.env.NODE_ENV === 'development') {
     if (!global._mongoClientPromise) {
-      const client = new MongoClient(uri);
+      const client = new MongoClient(MONGODB_URI);
       global._mongoClientPromise = client.connect();
     }
     return global._mongoClientPromise;
   }
 
-  const client = new MongoClient(uri);
+  const client = new MongoClient(MONGODB_URI);
   return client.connect();
 }
 
@@ -42,7 +39,7 @@ async function ensureIndexes(db: Db): Promise<void> {
 
 export async function getDb(): Promise<Db> {
   const client = await getClientPromise();
-  const db = client.db(dbName);
+  const db = client.db(DB_NAME);
   await ensureIndexes(db);
   return db;
 }
