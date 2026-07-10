@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
       created_at,
     } satisfies User);
   } catch (error) {
-    console.error('POST /api/users error:', error);
-    return NextResponse.json({ error: 'server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('POST /api/users error:', message);
+    return NextResponse.json({ error: 'server error', detail: message }, { status: 500 });
   }
 }

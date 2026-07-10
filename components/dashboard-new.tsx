@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { initializeQuestions, Question } from '@/lib/questions';
+import { initializeQuestions, mixQuestionsByDifficulty, Question } from '@/lib/questions';
 import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
-import { getOrCreateUser, getUserProgress, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase, loadDailyTodosFromDb } from '@/lib/db-service';
+import { getOrCreateUser, getUserProgressLocal, syncUserProgressFromDb, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase, loadDailyTodosFromDb, isOnlineUser } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
   CompletionEvent,
@@ -16,26 +16,19 @@ import {
   loadDailyTodos,
   saveCompletionEvents,
   saveDailyTodos,
+  dedupeCompletionEvents,
+  completionEventId,
 } from '@/lib/activity';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, ChevronDown, ChevronUp, Trophy,
+  AlertCircle, ListTodo, TrendingUp, Trophy,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
 type MainTab = 'problems' | 'todos' | 'analytics' | 'leaderboard';
-
-interface PhaseSection {
-  label: string;
-  questions: Question[];
-  color: string;
-  glow: string;
-  dotColor: string;
-  badgeClass: string;
-}
 
 export function DashboardNew() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -46,12 +39,10 @@ export function DashboardNew() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<FilterDifficulty>('all');
-  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
-    () => new Set(['Medium', 'Hard'])
-  );
   const [activeTab, setActiveTab] = useState<MainTab>('problems');
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
   const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
+  const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
 
   const debouncedSearch = useDebouncedValue(searchQuery, 180);
   useScrollPerformance();
@@ -64,6 +55,68 @@ export function DashboardNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const applyProgressToState = (progress: UserProgress[]) => {
+    const progressMap = new Map<number, UserProgress>();
+    progress.forEach((p) => progressMap.set(p.question_id, p));
+    setUserProgress(progressMap);
+  };
+
+  const loadProblemsData = async (userId: string) => {
+    setIsLoadingData(true);
+    try {
+      applyProgressToState(getUserProgressLocal(userId));
+
+      const progress = isOnlineUser(userId)
+        ? await syncUserProgressFromDb(userId)
+        : getUserProgressLocal(userId);
+      applyProgressToState(progress);
+
+      let events = dedupeCompletionEvents(loadCompletionEvents(userId));
+      if (events.length === 0) {
+        const backfill: CompletionEvent[] = progress
+          .filter((p) => p.status === 'done')
+          .map((p) => ({
+            id: completionEventId(userId, p.question_id),
+            user_id: userId,
+            question_id: p.question_id,
+            question_title: p.question_title ?? '',
+            question_phase: (p.question_phase ?? 'Easy') as 'Easy' | 'Medium' | 'Hard',
+            completed_at: p.updated_at,
+          }));
+        if (backfill.length > 0) {
+          events = dedupeCompletionEvents(backfill);
+          saveCompletionEvents(userId, events);
+        }
+      } else {
+        saveCompletionEvents(userId, events);
+      }
+      setCompletionEvents(events);
+    } catch (error) {
+      console.error('Error loading progress:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const loadTodosData = async (userId: string) => {
+    const todos = isOnlineUser(userId)
+      ? await loadDailyTodosFromDb(userId)
+      : loadDailyTodos(userId);
+    setDailyTodos(todos);
+    if (isOnlineUser(userId)) {
+      void syncDailyTodosToSupabase(userId, todos);
+    }
+  };
+
+  const loadAnalyticsData = async (userId: string) => {
+    const events = dedupeCompletionEvents(loadCompletionEvents(userId));
+    saveCompletionEvents(userId, events);
+    setCompletionEvents(events);
+    if (isOnlineUser(userId) && events.length > 0) {
+      void syncCompletionEventsToSupabase(userId, events);
+    }
+  };
+
   const handleLogin = async (username: string) => {
     setIsLoadingAuth(true);
     try {
@@ -71,7 +124,8 @@ export function DashboardNew() {
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('interview_prep_username', username);
-        await loadUserProgress(user.id);
+        setLoadedTabs(new Set(['problems']));
+        await loadProblemsData(user.id);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -80,42 +134,19 @@ export function DashboardNew() {
     }
   };
 
-  const loadUserProgress = async (userId: string) => {
-    setIsLoadingData(true);
-    try {
-      const progress = await getUserProgress(userId);
-      const progressMap = new Map<number, UserProgress>();
-      progress.forEach((p) => progressMap.set(p.question_id, p));
-      setUserProgress(progressMap);
+  useEffect(() => {
+    if (!currentUser) return;
 
-      let events = loadCompletionEvents(userId);
-      if (events.length === 0) {
-        const backfill: CompletionEvent[] = progress
-          .filter((p) => p.status === 'done')
-          .map((p) => ({
-            id: `backfill-${userId}-${p.question_id}`,
-            user_id: userId,
-            question_id: p.question_id,
-            question_title: p.question_title,
-            question_phase: p.question_phase as 'Easy' | 'Medium' | 'Hard',
-            completed_at: p.updated_at,
-          }));
-        if (backfill.length > 0) {
-          events = backfill;
-          saveCompletionEvents(userId, events);
-        }
-      }
-      setCompletionEvents(events);
-      const todos = await loadDailyTodosFromDb(userId);
-      setDailyTodos(todos);
-      void syncCompletionEventsToSupabase(userId, events);
-      void syncDailyTodosToSupabase(userId, todos);
-    } catch (error) {
-      console.error('Error loading progress:', error);
-    } finally {
-      setIsLoadingData(false);
+    if (activeTab === 'todos' && !loadedTabs.has('todos')) {
+      setLoadedTabs((prev) => new Set(prev).add('todos'));
+      void loadTodosData(currentUser.id);
     }
-  };
+
+    if (activeTab === 'analytics' && !loadedTabs.has('analytics')) {
+      setLoadedTabs((prev) => new Set(prev).add('analytics'));
+      void loadAnalyticsData(currentUser.id);
+    }
+  }, [activeTab, currentUser, loadedTabs]);
 
   const handleStatusChange = useCallback(async (questionId: string, newStatus: Question['status']) => {
     if (!currentUser) return;
@@ -186,6 +217,7 @@ export function DashboardNew() {
     setUserProgress(new Map());
     setCompletionEvents([]);
     setDailyTodos([]);
+    setLoadedTabs(new Set());
     setActiveTab('problems');
     setSearchQuery('');
     setFilterStatus('all');
@@ -221,6 +253,11 @@ export function DashboardNew() {
     return result;
   }, [questionsWithProgress, filterStatus, filterDifficulty, debouncedSearch]);
 
+  const mixedFiltered = useMemo(
+    () => mixQuestionsByDifficulty(filtered),
+    [filtered]
+  );
+
   const stats = useMemo(() => {
     const completed = questionsWithProgress.filter((q) => q.status === 'done').length;
     const revise = questionsWithProgress.filter((q) => q.status === 'revise').length;
@@ -237,44 +274,6 @@ export function DashboardNew() {
       progress,
     };
   }, [questionsWithProgress]);
-
-  const phases: PhaseSection[] = useMemo(
-    () => [
-      {
-        label: 'Easy',
-        questions: filtered.filter((q) => q.phase === 'Easy'),
-        color: '#4ADE80',
-        glow: 'rgba(34,197,94,0.20)',
-        dotColor: '#22C55E',
-        badgeClass: 'badge-easy',
-      },
-      {
-        label: 'Medium',
-        questions: filtered.filter((q) => q.phase === 'Medium'),
-        color: '#FCD34D',
-        glow: 'rgba(245,158,11,0.20)',
-        dotColor: '#F59E0B',
-        badgeClass: 'badge-medium',
-      },
-      {
-        label: 'Hard',
-        questions: filtered.filter((q) => q.phase === 'Hard'),
-        color: '#FCA5A5',
-        glow: 'rgba(239,68,68,0.20)',
-        dotColor: '#EF4444',
-        badgeClass: 'badge-hard',
-      },
-    ],
-    [filtered]
-  );
-
-  const togglePhase = (phase: string) => {
-    setCollapsedPhases((prev) => {
-      const next = new Set(prev);
-      next.has(phase) ? next.delete(phase) : next.add(phase);
-      return next;
-    });
-  };
 
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} isLoading={isLoadingAuth} />;
@@ -510,7 +509,10 @@ export function DashboardNew() {
               <div className="flex items-center gap-2 text-sm" style={{ color: '#94A3B8' }}>
                 <Search className="w-4 h-4" strokeWidth={1.75} />
                 <span>
-                  Showing <strong style={{ color: '#FFFFFF' }}>{filtered.length}</strong> questions
+                  Showing <strong style={{ color: '#FFFFFF' }}>{mixedFiltered.length}</strong> questions
+                  {filterDifficulty === 'all' && (
+                    <span style={{ color: '#64748B' }}> · mixed within each level</span>
+                  )}
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -571,7 +573,7 @@ export function DashboardNew() {
             <div className="spinner" />
             <p style={{ color: '#94A3B8' }}>Loading your progress…</p>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : mixedFiltered.length === 0 ? (
           <div className="glass-card flex flex-col items-center justify-center py-20 gap-4 animate-fade-in">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center"
@@ -585,76 +587,13 @@ export function DashboardNew() {
             </div>
           </div>
         ) : (
-          <div className="space-y-10">
-            {phases.map(({ label, questions: phaseQs, color, glow, dotColor }) => {
-              if (phaseQs.length === 0) return null;
-              const done = phaseQs.filter((q) => q.status === 'done').length;
-              const pct = Math.round((done / phaseQs.length) * 100);
-              const collapsed = collapsedPhases.has(label);
-
-              return (
-                <section key={label}>
-                  {/* Phase header */}
-                  <button
-                    onClick={() => togglePhase(label)}
-                    className="w-full flex items-center justify-between mb-6 group"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ background: dotColor, boxShadow: `0 0 10px ${glow}` }}
-                      />
-                      <h2 className="text-lg font-bold" style={{ color }}>
-                        {label} Problems
-                      </h2>
-                      <span
-                        className="text-xs font-semibold px-2.5 py-1 rounded-full tabular-nums"
-                        style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.10)',
-                          color: '#94A3B8',
-                        }}
-                      >
-                        {done}/{phaseQs.length} · {pct}%
-                      </span>
-                    </div>
-                    <div
-                      className="w-7 h-7 rounded-lg flex items-center justify-center opacity-50 group-hover:opacity-100 transition-opacity"
-                      style={{ background: 'rgba(255,255,255,0.06)' }}
-                    >
-                      {collapsed
-                        ? <ChevronDown className="w-4 h-4 text-white" strokeWidth={2} />
-                        : <ChevronUp className="w-4 h-4 text-white" strokeWidth={2} />
-                      }
-                    </div>
-                  </button>
-
-                  {/* Mini progress */}
-                  {!collapsed && (
-                    <div className="mb-5 progress-track" style={{ height: '4px' }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${pct}%`,
-                          background: `linear-gradient(90deg, ${dotColor}, ${color})`,
-                          boxShadow: `0 0 8px ${glow}`,
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {!collapsed && (
-                    <VirtualQuestionGrid
-                      questions={phaseQs}
-                      onStatusChange={handleStatusChange}
-                      onNotesChange={handleNotesChange}
-                    />
-                  )}
-                </section>
-              );
-            })}
-          </div>
+          <section>
+            <VirtualQuestionGrid
+              questions={mixedFiltered}
+              onStatusChange={handleStatusChange}
+              onNotesChange={handleNotesChange}
+            />
+          </section>
         )}
           </>
         )}

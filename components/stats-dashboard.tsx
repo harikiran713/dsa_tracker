@@ -8,6 +8,7 @@ import {
   STATS_PERIOD_LABELS,
   computePeriodStats,
   isInPeriod,
+  dedupeCompletionEvents,
 } from '@/lib/activity';
 import { BarChart3, CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
 
@@ -23,6 +24,14 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
   const stats = useMemo(
     () => computePeriodStats(completionEvents, dailyTodos, period),
     [completionEvents, dailyTodos, period]
+  );
+
+  const recentCompletions = useMemo(
+    () =>
+      dedupeCompletionEvents(completionEvents)
+        .filter((e) => isInPeriod(e.completed_at, period))
+        .slice(0, 15),
+    [completionEvents, period]
   );
 
   const maxDayCount = Math.max(...stats.byDay.map((d) => d.count), 1);
@@ -146,15 +155,11 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
       </div>
 
       {/* Recent completions list */}
-      {completionEvents.length > 0 && (
+      {recentCompletions.length > 0 && (
         <div className="glass-panel p-5">
           <h3 className="font-semibold text-white mb-4">Recent Completions</h3>
           <div className="stats-recent-list">
-            {[...completionEvents]
-              .filter((e) => isInPeriod(e.completed_at, period))
-              .reverse()
-              .slice(0, 15)
-              .map((e) => (
+            {recentCompletions.map((e) => (
                 <div key={e.id} className="stats-recent-item">
                   <div className="flex items-center gap-2 min-w-0">
                     <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#4ADE80' }} />

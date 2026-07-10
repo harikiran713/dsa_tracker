@@ -1,5 +1,5 @@
 import { User, UserProgress } from './types';
-import { CompletionEvent, DailyTodoItem, loadCompletionEvents, loadDailyTodos, saveDailyTodos } from './activity';
+import { CompletionEvent, DailyTodoItem, loadCompletionEvents, loadDailyTodos, saveDailyTodos, logCompletionEvent, dedupeCompletionEvents, completionEventId } from './activity';
 import {
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -8,28 +8,6 @@ import {
 export type { User, UserProgress };
 
 const USER_CACHE_KEY = 'interview_prep_user_cache';
-
-function logCompletionEvent(
-  userId: string,
-  questionId: number,
-  questionTitle: string,
-  questionPhase: string
-): CompletionEvent {
-  const event: CompletionEvent = {
-    id: `${userId}-${questionId}-${Date.now()}`,
-    user_id: userId,
-    question_id: questionId,
-    question_title: questionTitle,
-    question_phase: questionPhase as 'Easy' | 'Medium' | 'Hard',
-    completed_at: new Date().toISOString(),
-  };
-  const events = loadCompletionEvents(userId);
-  events.push(event);
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(`completion_events_${userId}`, JSON.stringify(events));
-  }
-  return event;
-}
 
 function loadUserCache(): Record<string, User> {
   if (typeof window === 'undefined') return {};
@@ -86,8 +64,9 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T | null>
       },
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.warn(`[api] ${options?.method ?? 'GET'} ${url} failed: ${res.status}`, text);
+      if (res.status >= 500) {
+        console.warn(`[api] ${options?.method ?? 'GET'} ${url} unavailable (${res.status})`);
+      }
       return null;
     }
     return (await res.json()) as T;
@@ -204,28 +183,35 @@ export async function syncProgressBatchToSupabase(
   });
 }
 
-export async function getUserProgress(userId: string): Promise<UserProgress[]> {
+export function getUserProgressLocal(userId: string): UserProgress[] {
+  if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem(`progress_${userId}`);
-    const localProgress: UserProgress[] = stored ? JSON.parse(stored) : [];
-
-    const remoteProgress =
-      (await apiJson<UserProgress[]>(`/api/progress?userId=${encodeURIComponent(userId)}`)) ?? [];
-
-    const merged = mergeProgress(localProgress, remoteProgress);
-
-    localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
-
-    if (isOnlineUserId(userId) && merged.length > 0) {
-      void syncProgressBatchToSupabase(userId, merged);
-    }
-
-    return merged;
-  } catch (error) {
-    console.error('Unexpected error in getUserProgress:', error);
-    const stored = localStorage.getItem(`progress_${userId}`);
     return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
   }
+}
+
+export async function syncUserProgressFromDb(userId: string): Promise<UserProgress[]> {
+  const localProgress = getUserProgressLocal(userId);
+  if (!isOnlineUserId(userId)) return localProgress;
+
+  const remoteProgress =
+    (await apiJson<UserProgress[]>(`/api/progress?userId=${encodeURIComponent(userId)}`)) ?? [];
+
+  const merged = mergeProgress(localProgress, remoteProgress);
+  localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
+
+  if (merged.length > 0) {
+    void syncProgressBatchToSupabase(userId, merged);
+  }
+
+  return merged;
+}
+
+export async function getUserProgress(userId: string): Promise<UserProgress[]> {
+  return syncUserProgressFromDb(userId);
 }
 
 export async function updateQuestionProgress(
@@ -344,6 +330,8 @@ export async function syncCompletionEventsToSupabase(
 
 export async function loadDailyTodosFromDb(userId: string): Promise<DailyTodoItem[]> {
   const local = loadDailyTodos(userId);
+  if (!isOnlineUserId(userId)) return local;
+
   const remote =
     (await apiJson<DailyTodoItem[]>(
       `/api/daily-todos?userId=${encodeURIComponent(userId)}`
@@ -362,6 +350,10 @@ export async function syncDailyTodosToSupabase(
     method: 'PUT',
     body: JSON.stringify({ userId, todos }),
   });
+}
+
+export function isOnlineUser(userId: string): boolean {
+  return isOnlineUserId(userId);
 }
 
 export async function getLeaderboard(period: LeaderboardPeriod): Promise<LeaderboardEntry[]> {

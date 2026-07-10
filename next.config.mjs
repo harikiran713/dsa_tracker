@@ -21,7 +21,8 @@ const nextConfig = {
       transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
     },
   },
-  webpack: (config, { dev }) => {
+  serverExternalPackages: ['mongodb'],
+  webpack: (config, { dev, isServer }) => {
     // Limit parallel work during build to reduce CPU spikes.
     config.parallelism = 1;
 

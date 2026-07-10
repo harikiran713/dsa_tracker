@@ -13,12 +13,13 @@ export async function POST(request: NextRequest) {
     const collection = db.collection('completion_events');
 
     for (const event of events) {
-      if (!event?.id || !event?.user_id) continue;
+      if (!event?.user_id || event.question_id == null) continue;
+      const id = event.id || `${event.user_id}-q-${event.question_id}`;
       await collection.updateOne(
-        { id: event.id },
+        { user_id: String(event.user_id), question_id: Number(event.question_id) },
         {
           $set: {
-            id: event.id,
+            id,
             user_id: String(event.user_id),
             question_id: Number(event.question_id),
             question_title: event.question_title ?? '',

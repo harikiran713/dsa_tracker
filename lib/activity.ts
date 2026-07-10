@@ -71,13 +71,30 @@ export function toDateKey(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function completionEventId(userId: string, questionId: number): string {
+  return `${userId}-q-${questionId}`;
+}
+
+/** Keep only the latest completion per question. */
+export function dedupeCompletionEvents(events: CompletionEvent[]): CompletionEvent[] {
+  const map = new Map<number, CompletionEvent>();
+  for (const e of events) {
+    const existing = map.get(e.question_id);
+    if (!existing || new Date(e.completed_at) >= new Date(existing.completed_at)) {
+      map.set(e.question_id, e);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.completed_at.localeCompare(a.completed_at));
+}
+
 export function computePeriodStats(
   events: CompletionEvent[],
   todos: DailyTodoItem[],
   period: StatsPeriod,
   reviseEvents: { updated_at: string }[] = []
 ): PeriodStats {
-  const filtered = events.filter((e) => isInPeriod(e.completed_at, period));
+  const deduped = dedupeCompletionEvents(events);
+  const filtered = deduped.filter((e) => isInPeriod(e.completed_at, period));
   const filteredTodos = todos.filter((t) => isInPeriod(t.date + 'T12:00:00', period));
   const filteredRevise = reviseEvents.filter((e) => isInPeriod(e.updated_at, period));
 
@@ -113,7 +130,10 @@ export function computePeriodStats(
 export function loadCompletionEvents(userId: string): CompletionEvent[] {
   if (typeof window === 'undefined') return [];
   try {
-    return JSON.parse(localStorage.getItem(`completion_events_${userId}`) || '[]');
+    const raw: CompletionEvent[] = JSON.parse(
+      localStorage.getItem(`completion_events_${userId}`) || '[]'
+    );
+    return dedupeCompletionEvents(raw);
   } catch {
     return [];
   }
@@ -121,7 +141,10 @@ export function loadCompletionEvents(userId: string): CompletionEvent[] {
 
 export function saveCompletionEvents(userId: string, events: CompletionEvent[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(`completion_events_${userId}`, JSON.stringify(events));
+  localStorage.setItem(
+    `completion_events_${userId}`,
+    JSON.stringify(dedupeCompletionEvents(events))
+  );
 }
 
 export function logCompletionEvent(
@@ -131,14 +154,14 @@ export function logCompletionEvent(
   phase: 'Easy' | 'Medium' | 'Hard'
 ): CompletionEvent {
   const event: CompletionEvent = {
-    id: `${userId}-${questionId}-${Date.now()}`,
+    id: completionEventId(userId, questionId),
     user_id: userId,
     question_id: questionId,
     question_title: title,
     question_phase: phase,
     completed_at: new Date().toISOString(),
   };
-  const events = loadCompletionEvents(userId);
+  const events = loadCompletionEvents(userId).filter((e) => e.question_id !== questionId);
   events.push(event);
   saveCompletionEvents(userId, events);
   return event;

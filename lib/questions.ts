@@ -381,6 +381,20 @@ export function initializeQuestions(): Question[] {
   return questions;
 }
 
+/** Shuffle within each difficulty only — Easy with Easy, Medium with Medium, Hard with Hard. */
+function shuffleWithinGroup<T extends Question>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => ((a.number * 7919) % 10007) - ((b.number * 7919) % 10007)
+  );
+}
+
+export function mixQuestionsByDifficulty<T extends Question>(questions: T[]): T[] {
+  const easy = shuffleWithinGroup(questions.filter((q) => q.phase === 'Easy'));
+  const medium = shuffleWithinGroup(questions.filter((q) => q.phase === 'Medium'));
+  const hard = shuffleWithinGroup(questions.filter((q) => q.phase === 'Hard'));
+  return [...easy, ...medium, ...hard];
+}
+
 export function getQuestionsFromStorage(): Question[] {
   if (typeof window === 'undefined') {
     return initializeQuestions();
