@@ -366,29 +366,41 @@ export async function loadDayTrackerFromDb(userId: string): Promise<DayTrackerDa
   const remote = await apiJson<DayTrackerData>(
     `/api/day-tracker?userId=${encodeURIComponent(userId)}`
   );
-  if (!remote) return local;
 
-  const merged = mergeDayTrackers(local, {
-    user_id: remote.user_id || userId,
-    completions: remote.completions ?? [],
-    updated_at: remote.updated_at || new Date().toISOString(),
-  });
+  const merged = remote
+    ? mergeDayTrackers(local, {
+        user_id: remote.user_id || userId,
+        completions: remote.completions ?? [],
+        updated_at: remote.updated_at || new Date().toISOString(),
+      })
+    : local;
+
   saveDayTracker(userId, merged);
+  await syncDayTrackerToDb(userId, merged);
   return merged;
 }
 
 export async function syncDayTrackerToDb(
   userId: string,
   data: DayTrackerData
-): Promise<void> {
-  if (!isOnlineUserId(userId)) return;
-  await apiJson<{ ok: boolean }>('/api/day-tracker', {
-    method: 'PUT',
-    body: JSON.stringify({
-      userId,
-      completions: data.completions,
-    }),
-  });
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+
+  const payload = {
+    userId,
+    completions: data.completions,
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await apiJson<{ ok: boolean }>('/api/day-tracker', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (result?.ok) return true;
+  }
+
+  console.warn('[day-tracker] Failed to save to MongoDB for user', userId);
+  return false;
 }
 
 export { emptyDayTracker, loadDayTracker, saveDayTracker };

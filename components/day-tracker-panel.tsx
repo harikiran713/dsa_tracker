@@ -10,14 +10,21 @@ import {
   isDayCompleted,
   toggleDayCompletion,
 } from '@/lib/day-tracker';
-import { CalendarDays, Check, Flame, Target } from 'lucide-react';
+import { CalendarDays, Check, Cloud, CloudOff, Flame, Loader2, Target } from 'lucide-react';
+
+export type DayTrackerSyncStatus = 'idle' | 'saving' | 'saved' | 'error' | 'offline';
 
 interface DayTrackerPanelProps {
   data: DayTrackerData;
   onChange: (data: DayTrackerData) => void;
+  syncStatus?: DayTrackerSyncStatus;
 }
 
-export function DayTrackerPanel({ data, onChange }: DayTrackerPanelProps) {
+export function DayTrackerPanel({
+  data,
+  onChange,
+  syncStatus = 'idle',
+}: DayTrackerPanelProps) {
   const completedCount = getCompletedCount(data);
   const progressPct = Math.round((completedCount / TOTAL_CHALLENGE_DAYS) * 100);
   const streak = getCurrentStreak(data);
@@ -31,6 +38,14 @@ export function DayTrackerPanel({ data, onChange }: DayTrackerPanelProps) {
   const handleToggle = (day: number) => {
     onChange(toggleDayCompletion(data, day));
   };
+
+  const syncLabel = {
+    idle: 'Ready',
+    saving: 'Saving to database…',
+    saved: 'Saved to database',
+    error: 'Could not save — will retry',
+    offline: 'Saved locally only (offline user)',
+  }[syncStatus];
 
   return (
     <div className="day-tracker-panel">
@@ -63,6 +78,28 @@ export function DayTrackerPanel({ data, onChange }: DayTrackerPanelProps) {
               Mark Day {nextDay} Done
             </button>
           )}
+        </div>
+
+        <div className="day-tracker-sync" aria-live="polite">
+          {syncStatus === 'saving' ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+          ) : syncStatus === 'error' || syncStatus === 'offline' ? (
+            <CloudOff className="w-3.5 h-3.5" strokeWidth={2} />
+          ) : (
+            <Cloud className="w-3.5 h-3.5" strokeWidth={2} />
+          )}
+          <span
+            style={{
+              color:
+                syncStatus === 'saved'
+                  ? '#4ADE80'
+                  : syncStatus === 'error'
+                    ? '#FCA5A5'
+                    : '#94A3B8',
+            }}
+          >
+            {syncLabel}
+          </span>
         </div>
 
         <div className="day-tracker-stats">

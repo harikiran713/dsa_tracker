@@ -5,7 +5,7 @@ import { initializeQuestions, mixQuestionsByDifficulty, Question } from '@/lib/q
 import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
-import { DayTrackerPanel } from './day-tracker-panel';
+import { DayTrackerPanel, DayTrackerSyncStatus } from './day-tracker-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
 import {
@@ -62,6 +62,7 @@ export function DashboardNew() {
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
   const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
   const [dayTracker, setDayTracker] = useState<DayTrackerData | null>(null);
+  const [dayTrackerSync, setDayTrackerSync] = useState<DayTrackerSyncStatus>('idle');
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderToast, setReminderToast] = useState<string | null>(null);
@@ -131,13 +132,16 @@ export function DashboardNew() {
   };
 
   const loadDayTrackerData = async (userId: string) => {
-    const data = isOnlineUser(userId)
-      ? await loadDayTrackerFromDb(userId)
-      : loadDayTracker(userId);
-    setDayTracker(data);
-    if (isOnlineUser(userId)) {
-      void syncDayTrackerToDb(userId, data);
+    if (!isOnlineUser(userId)) {
+      setDayTracker(loadDayTracker(userId));
+      setDayTrackerSync('offline');
+      return;
     }
+
+    setDayTrackerSync('saving');
+    const data = await loadDayTrackerFromDb(userId);
+    setDayTracker(data);
+    setDayTrackerSync('saved');
   };
 
   const loadAnalyticsData = async (userId: string) => {
@@ -156,12 +160,13 @@ export function DashboardNew() {
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('interview_prep_username', username);
-        setLoadedTabs(new Set(['problems']));
+        setLoadedTabs(new Set(['problems', 'day100']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
         setDailyTodos(loadDailyTodos(user.id));
         setDayTracker(loadDayTracker(user.id));
         await loadProblemsData(user.id);
         void loadTodosData(user.id);
+        void loadDayTrackerData(user.id);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -226,11 +231,19 @@ export function DashboardNew() {
     void syncDailyTodosToSupabase(currentUser.id, todos);
   }, [currentUser]);
 
-  const handleDayTrackerChange = useCallback((data: DayTrackerData) => {
+  const handleDayTrackerChange = useCallback(async (data: DayTrackerData) => {
     if (!currentUser) return;
     setDayTracker(data);
     saveDayTracker(currentUser.id, data);
-    void syncDayTrackerToDb(currentUser.id, data);
+
+    if (!isOnlineUser(currentUser.id)) {
+      setDayTrackerSync('offline');
+      return;
+    }
+
+    setDayTrackerSync('saving');
+    const ok = await syncDayTrackerToDb(currentUser.id, data);
+    setDayTrackerSync(ok ? 'saved' : 'error');
   }, [currentUser]);
 
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
@@ -266,6 +279,7 @@ export function DashboardNew() {
     setCompletionEvents([]);
     setDailyTodos([]);
     setDayTracker(null);
+    setDayTrackerSync('idle');
     setLoadedTabs(new Set());
     setReminderEnabled(false);
     setReminderToast(null);
@@ -539,6 +553,7 @@ export function DashboardNew() {
           <DayTrackerPanel
             data={dayTracker ?? emptyDayTracker(currentUser.id)}
             onChange={handleDayTrackerChange}
+            syncStatus={dayTrackerSync}
           />
         )}
 

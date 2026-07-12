@@ -1402,6 +1402,15 @@ html.is-scrolling .progress-fill {
 
 /* ── 100 Day Tracker ─────────────────────────────────────────── */
 
+.day-tracker-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .day-tracker-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
