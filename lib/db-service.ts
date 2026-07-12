@@ -1,6 +1,13 @@
 import { User, UserProgress } from './types';
 import { CompletionEvent, DailyTodoItem, loadCompletionEvents, loadDailyTodos, saveDailyTodos, logCompletionEvent, dedupeCompletionEvents, completionEventId } from './activity';
 import {
+  DayTrackerData,
+  emptyDayTracker,
+  loadDayTracker,
+  mergeDayTrackers,
+  saveDayTracker,
+} from './day-tracker';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -29,7 +36,7 @@ function saveUserToCache(user: User): void {
 function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || oldUserId === newUserId || typeof window === 'undefined') return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -351,6 +358,41 @@ export async function syncDailyTodosToSupabase(
     body: JSON.stringify({ userId, todos }),
   });
 }
+
+export async function loadDayTrackerFromDb(userId: string): Promise<DayTrackerData> {
+  const local = loadDayTracker(userId);
+  if (!isOnlineUserId(userId)) return local;
+
+  const remote = await apiJson<DayTrackerData>(
+    `/api/day-tracker?userId=${encodeURIComponent(userId)}`
+  );
+  if (!remote) return local;
+
+  const merged = mergeDayTrackers(local, {
+    user_id: remote.user_id || userId,
+    completions: remote.completions ?? [],
+    updated_at: remote.updated_at || new Date().toISOString(),
+  });
+  saveDayTracker(userId, merged);
+  return merged;
+}
+
+export async function syncDayTrackerToDb(
+  userId: string,
+  data: DayTrackerData
+): Promise<void> {
+  if (!isOnlineUserId(userId)) return;
+  await apiJson<{ ok: boolean }>('/api/day-tracker', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      completions: data.completions,
+    }),
+  });
+}
+
+export { emptyDayTracker, loadDayTracker, saveDayTracker };
+export type { DayTrackerData };
 
 export function isOnlineUser(userId: string): boolean {
   return isOnlineUserId(userId);

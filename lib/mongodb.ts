@@ -37,6 +37,7 @@ async function ensureIndexes(db: Db): Promise<void> {
       db.collection('completion_events').createIndex({ user_id: 1, completed_at: -1 }),
       db.collection('daily_todos').createIndex({ id: 1 }, { unique: true }),
       db.collection('daily_todos').createIndex({ user_id: 1, date: 1 }),
+      db.collection('day_tracker').createIndex({ user_id: 1 }, { unique: true }),
     ]);
     indexesEnsured = true;
   } catch (error) {

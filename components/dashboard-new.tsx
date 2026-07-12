@@ -5,9 +5,24 @@ import { initializeQuestions, mixQuestionsByDifficulty, Question } from '@/lib/q
 import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
+import { DayTrackerPanel } from './day-tracker-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
-import { getOrCreateUser, getUserProgressLocal, syncUserProgressFromDb, updateQuestionProgress, syncCompletionEventsToSupabase, syncDailyTodosToSupabase, loadDailyTodosFromDb, isOnlineUser } from '@/lib/db-service';
+import {
+  getOrCreateUser,
+  getUserProgressLocal,
+  syncUserProgressFromDb,
+  updateQuestionProgress,
+  syncCompletionEventsToSupabase,
+  syncDailyTodosToSupabase,
+  loadDailyTodosFromDb,
+  isOnlineUser,
+  loadDayTrackerFromDb,
+  syncDayTrackerToDb,
+  loadDayTracker,
+  emptyDayTracker,
+  DayTrackerData,
+} from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
   CompletionEvent,
@@ -19,6 +34,7 @@ import {
   dedupeCompletionEvents,
   completionEventId,
 } from '@/lib/activity';
+import { saveDayTracker } from '@/lib/day-tracker';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -26,12 +42,12 @@ import { DailyTodoReminderToast } from './daily-todo-reminder-toast';
 import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, Trophy,
+  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'analytics' | 'leaderboard';
 
 export function DashboardNew() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -45,6 +61,7 @@ export function DashboardNew() {
   const [activeTab, setActiveTab] = useState<MainTab>('problems');
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
   const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
+  const [dayTracker, setDayTracker] = useState<DayTrackerData | null>(null);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderToast, setReminderToast] = useState<string | null>(null);
@@ -113,6 +130,16 @@ export function DashboardNew() {
     }
   };
 
+  const loadDayTrackerData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadDayTrackerFromDb(userId)
+      : loadDayTracker(userId);
+    setDayTracker(data);
+    if (isOnlineUser(userId)) {
+      void syncDayTrackerToDb(userId, data);
+    }
+  };
+
   const loadAnalyticsData = async (userId: string) => {
     const events = dedupeCompletionEvents(loadCompletionEvents(userId));
     saveCompletionEvents(userId, events);
@@ -132,6 +159,7 @@ export function DashboardNew() {
         setLoadedTabs(new Set(['problems']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
         setDailyTodos(loadDailyTodos(user.id));
+        setDayTracker(loadDayTracker(user.id));
         await loadProblemsData(user.id);
         void loadTodosData(user.id);
       }
@@ -148,6 +176,11 @@ export function DashboardNew() {
     if (activeTab === 'todos' && !loadedTabs.has('todos')) {
       setLoadedTabs((prev) => new Set(prev).add('todos'));
       void loadTodosData(currentUser.id);
+    }
+
+    if (activeTab === 'day100' && !loadedTabs.has('day100')) {
+      setLoadedTabs((prev) => new Set(prev).add('day100'));
+      void loadDayTrackerData(currentUser.id);
     }
 
     if (activeTab === 'analytics' && !loadedTabs.has('analytics')) {
@@ -193,6 +226,13 @@ export function DashboardNew() {
     void syncDailyTodosToSupabase(currentUser.id, todos);
   }, [currentUser]);
 
+  const handleDayTrackerChange = useCallback((data: DayTrackerData) => {
+    if (!currentUser) return;
+    setDayTracker(data);
+    saveDayTracker(currentUser.id, data);
+    void syncDayTrackerToDb(currentUser.id, data);
+  }, [currentUser]);
+
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
     if (!currentUser) return;
     const numId = parseInt(questionId.split('-')[1]);
@@ -225,6 +265,7 @@ export function DashboardNew() {
     setUserProgress(new Map());
     setCompletionEvents([]);
     setDailyTodos([]);
+    setDayTracker(null);
     setLoadedTabs(new Set());
     setReminderEnabled(false);
     setReminderToast(null);
@@ -454,6 +495,14 @@ export function DashboardNew() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('day100')}
+            className={`main-tab ${activeTab === 'day100' ? 'main-tab--active' : ''}`}
+          >
+            <CalendarDays className="w-4 h-4" strokeWidth={1.75} />
+            100 Days
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('analytics')}
             className={`main-tab ${activeTab === 'analytics' ? 'main-tab--active' : ''}`}
           >
@@ -483,6 +532,13 @@ export function DashboardNew() {
             reminderEnabled={reminderEnabled}
             onReminderEnabledChange={setReminderEnabled}
             onTestReminder={handleTestReminder}
+          />
+        )}
+
+        {activeTab === 'day100' && currentUser && (
+          <DayTrackerPanel
+            data={dayTracker ?? emptyDayTracker(currentUser.id)}
+            onChange={handleDayTrackerChange}
           />
         )}
 
