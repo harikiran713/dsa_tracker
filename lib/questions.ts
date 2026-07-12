@@ -246,7 +246,7 @@ const mediumQuestions = [
   'Length of Longest V-Shaped Diagonal Segment',
 ];
 
-// Phase 3: Hard (108 questions)
+// Phase 3: Hard
 const hardQuestions = [
   'Binary Tree Maximum Path Sum',
   'Maximum Product of Splitted Binary Tree',
@@ -328,6 +328,36 @@ const hardQuestions = [
   'Substring with Concatenation of All Words',
   'Shortest Subarray with Sum at Least K',
   'Minimum Window Subsequence',
+  // Graph / shortest-path hard set (append-only so existing #s stay stable)
+  'Word Ladder II',
+  'Alien Dictionary',
+  'Trapping Rain Water II',
+  'The Maze III',
+  'Redundant Connection II',
+  'Cracking the Safe',
+  'Sliding Puzzle',
+  'Shortest Path Visiting All Nodes',
+  'Shortest Path to Get All Keys',
+  'Critical Connections in a Network',
+  'Shortest Path in a Grid with Obstacles Elimination',
+  'Number of Restricted Paths From First to Last Node',
+  'Minimum Weighted Subgraph With the Required Paths',
+  // Hard DP set (append-only so existing #s stay stable)
+  'Edit Distance',
+  'Wildcard Matching',
+  'Regular Expression Matching',
+  'Distinct Subsequences',
+  'Palindrome Partitioning II',
+  'Burst Balloons',
+  'Minimum Cost to Merge Stones',
+  'Remove Boxes',
+  'Dungeon Game',
+  'Cherry Pickup',
+  'Longest Increasing Path in a Matrix',
+  'Frog Jump',
+  'Split Array Largest Sum',
+  'Best Time to Buy and Sell Stock IV',
+  'Maximum Students Taking Exam',
 ];
 
 export function initializeQuestions(): Question[] {
