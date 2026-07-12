@@ -31,22 +31,17 @@ function getTitleSlug(title: string): string {
   return SLUG_OVERRIDES[baseSlug] ?? baseSlug;
 }
 
-// Phase 1: Easy (50 questions)
+// Phase 1: Easy
 const easyQuestions = [
   'Reverse Vowels of a String',
   'Remove Duplicates from Sorted Array',
   'Reverse Words in a String',
+  // Keep a small tree core only
   'Path Sum',
-  'Leaf-Similar Trees',
   'Same Tree',
   'Symmetric Tree',
   'Binary Tree Inorder Traversal',
-  'Binary Tree Preorder Traversal',
   'Minimum Depth of Binary Tree',
-  'Find Largest Value in Each Tree Row',
-  'Find Bottom Left Tree Value',
-  'Find Elements in a Contaminated Binary Tree',
-  'Check Completeness of Binary Tree',
   'Keys and Rooms',
   'Find if Path Exists in Graph',
   'Minimum Genetic Mutation',
@@ -60,11 +55,6 @@ const easyQuestions = [
   'Maximum Bags With Full Capacity of Rocks',
   'Maximum Number of Integers to Choose From a Range',
   'Maximum Distance in Arrays',
-  'Count Nodes Equal to Average of Subtree',
-  'Count Complete Tree Nodes',
-  'Add One Row to Tree',
-  'Delete Leaves With Given Value',
-  'Create Binary Tree From Descriptions',
   'Find the Longest Balanced Substring of a Binary String',
   'Maximum Distance Between a Pair of Values',
   'Minimize Maximum Pair Sum in Array',
@@ -425,11 +415,45 @@ export function initializeQuestions(): Question[] {
   return questions;
 }
 
-/** Shuffle within each difficulty only — Easy with Easy, Medium with Medium, Hard with Hard. */
+/** Seeded PRNG so order is stable for a given seed, but well mixed. */
+function mulberry32(seed: number): () => number {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Fisher–Yates shuffle within a difficulty group.
+ * Mixes older questions with recently appended ones (keeps question numbers stable).
+ */
 function shuffleWithinGroup<T extends Question>(items: T[]): T[] {
-  return [...items].sort(
-    (a, b) => ((a.number * 7919) % 10007) - ((b.number * 7919) % 10007)
-  );
+  if (items.length <= 1) return items;
+
+  const arr = [...items];
+  // Seed from the set itself so adding new questions reshuffles the whole group.
+  // Day factor rotates the mix daily without changing stored progress IDs.
+  const now = new Date();
+  const dayKey = now.getFullYear() * 1000 + (now.getMonth() + 1) * 40 + now.getDate();
+  let seed = dayKey ^ (arr.length * 2654435761);
+  for (const q of arr) {
+    seed = Math.imul(seed ^ q.number, 1597334677);
+    for (let i = 0; i < q.title.length; i++) {
+      seed = Math.imul(seed ^ q.title.charCodeAt(i), 2246822519);
+    }
+  }
+
+  const rand = mulberry32(seed >>> 0);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
 }
 
 export function mixQuestionsByDifficulty<T extends Question>(questions: T[]): T[] {
