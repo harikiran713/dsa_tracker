@@ -234,6 +234,14 @@ const mediumQuestions = [
   'Maximum Array Sum',
   'Maximum Path Score in a Grid',
   'Length of Longest V-Shaped Diagonal Segment',
+  // Medium DP set (append-only so existing #s stay stable)
+  'Minimum Cost For Tickets',
+  'Count Ways to Build Good Strings',
+  'Dice Rolls With Target Sum',
+  'Maximum Alternating Subsequence Sum',
+  'Minimum Sideway Jumps',
+  'Knight Dialer',
+  'Minimize the Difference Between Target and Chosen Elements',
 ];
 
 // Phase 3: Hard
