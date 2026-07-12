@@ -358,6 +358,20 @@ const hardQuestions = [
   'Split Array Largest Sum',
   'Best Time to Buy and Sell Stock IV',
   'Maximum Students Taking Exam',
+  // Hard sliding-window set (append-only so existing #s stay stable)
+  'Sliding Window Median',
+  'Subarrays with K Different Integers',
+  'Count Subarrays With Fixed Bounds',
+  'Count Subarrays With Score Less Than K',
+  'Minimum Number of K Consecutive Bit Flips',
+  'Minimum Number of Operations to Make Array Continuous',
+  'Smallest Range Covering Elements from K Lists',
+  'Maximum Number of Visible Points',
+  'Maximum Number of Robots Within Budget',
+  'Max Value of Equation',
+  'Shortest Subarray With OR at Least K II',
+  'Count Non-Decreasing Subarrays After K Operations',
+  'Maximum Difference Between Even and Odd Frequency II',
 ];
 
 export function initializeQuestions(): Question[] {
