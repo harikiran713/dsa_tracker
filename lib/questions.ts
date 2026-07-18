@@ -380,6 +380,15 @@ const hardQuestions = [
   'Graph Connectivity With Threshold',
   'Checking Existence of Edge Length Limited Paths II',
   'Cat and Mouse',
+  // Hard DP set (append-only so existing #s stay stable)
+  'Best Time to Buy and Sell Stock III',
+  'Russian Doll Envelopes',
+  'Form Largest Integer With Digits That Add up to Target',
+  'Find the Shortest Superstring',
+  'Number of Digit One',
+  'Count of Integers',
+  'Binary Tree Cameras',
+  'Delivering Boxes from Storage to Ports',
 ];
 
 export function initializeQuestions(): Question[] {
