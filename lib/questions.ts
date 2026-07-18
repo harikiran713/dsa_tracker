@@ -242,6 +242,7 @@ const mediumQuestions = [
   'Minimum Sideway Jumps',
   'Knight Dialer',
   'Minimize the Difference Between Target and Chosen Elements',
+  'Longest Path With Different Adjacent Characters',
 ];
 
 // Phase 3: Hard
@@ -370,6 +371,15 @@ const hardQuestions = [
   'Shortest Subarray With OR at Least K II',
   'Count Non-Decreasing Subarrays After K Operations',
   'Maximum Difference Between Even and Odd Frequency II',
+  // Hard graph set (append-only so existing #s stay stable)
+  'Bricks Falling When Hit',
+  'Minimum Number of Days to Disconnect Island',
+  'Contain Virus',
+  'Reachable Nodes In Subdivided Graph',
+  'Minimum Cost to Reach Destination in Time',
+  'Graph Connectivity With Threshold',
+  'Checking Existence of Edge Length Limited Paths II',
+  'Cat and Mouse',
 ];
 
 export function initializeQuestions(): Question[] {

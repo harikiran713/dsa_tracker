@@ -38,6 +38,10 @@ async function ensureIndexes(db: Db): Promise<void> {
       db.collection('daily_todos').createIndex({ id: 1 }, { unique: true }),
       db.collection('daily_todos').createIndex({ user_id: 1, date: 1 }),
       db.collection('day_tracker').createIndex({ user_id: 1 }, { unique: true }),
+      db.collection('last_min_prep_progress').createIndex(
+        { user_id: 1, leetcode_id: 1 },
+        { unique: true }
+      ),
     ]);
     indexesEnsured = true;
   } catch (error) {

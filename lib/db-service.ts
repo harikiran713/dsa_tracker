@@ -8,6 +8,12 @@ import {
   saveDayTracker,
 } from './day-tracker';
 import {
+  LastMinPrepProgress,
+  loadLastMinPrepProgress,
+  saveLastMinPrepProgress,
+  mergeLastMinPrepProgress,
+} from './last-min-prep';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -36,7 +42,7 @@ function saveUserToCache(user: User): void {
 function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || oldUserId === newUserId || typeof window === 'undefined') return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -405,6 +411,33 @@ export async function syncDayTrackerToDb(
 
 export { emptyDayTracker, loadDayTracker, saveDayTracker };
 export type { DayTrackerData };
+
+export async function loadLastMinPrepFromDb(userId: string): Promise<LastMinPrepProgress[]> {
+  const local = loadLastMinPrepProgress(userId);
+  if (!isOnlineUserId(userId)) return local;
+
+  const remote =
+    (await apiJson<LastMinPrepProgress[]>(
+      `/api/last-min-prep?userId=${encodeURIComponent(userId)}`
+    )) ?? [];
+
+  const merged = mergeLastMinPrepProgress(local, remote);
+  saveLastMinPrepProgress(userId, merged);
+  await syncLastMinPrepToDb(userId, merged);
+  return merged;
+}
+
+export async function syncLastMinPrepToDb(
+  userId: string,
+  progress: LastMinPrepProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/last-min-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
 
 export function isOnlineUser(userId: string): boolean {
   return isOnlineUserId(userId);
