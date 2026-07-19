@@ -7,6 +7,7 @@ import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { DayTrackerPanel, DayTrackerSyncStatus } from './day-tracker-panel';
 import { LastMinPrepPanel } from './last-min-prep-panel';
+import { LldPanel } from './lld-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
 import {
@@ -25,6 +26,8 @@ import {
   DayTrackerData,
   loadLastMinPrepFromDb,
   syncLastMinPrepToDb,
+  loadLldFromDb,
+  syncLldToDb,
 } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
@@ -43,6 +46,11 @@ import {
   loadLastMinPrepProgress,
   saveLastMinPrepProgress,
 } from '@/lib/last-min-prep';
+import {
+  LldProgress,
+  loadLldProgress,
+  saveLldProgress,
+} from '@/lib/lld';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -50,12 +58,12 @@ import { DailyTodoReminderToast } from './daily-todo-reminder-toast';
 import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket,
+  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'lld' | 'analytics' | 'leaderboard';
 
 export function DashboardNew() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -72,6 +80,7 @@ export function DashboardNew() {
   const [dayTracker, setDayTracker] = useState<DayTrackerData | null>(null);
   const [dayTrackerSync, setDayTrackerSync] = useState<DayTrackerSyncStatus>('idle');
   const [lastMinPrep, setLastMinPrep] = useState<LastMinPrepProgress[]>([]);
+  const [lldProgress, setLldProgress] = useState<LldProgress[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderToast, setReminderToast] = useState<string | null>(null);
@@ -160,6 +169,13 @@ export function DashboardNew() {
     setLastMinPrep(data);
   };
 
+  const loadLldData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadLldFromDb(userId)
+      : loadLldProgress(userId);
+    setLldProgress(data);
+  };
+
   const loadAnalyticsData = async (userId: string) => {
     const events = dedupeCompletionEvents(loadCompletionEvents(userId));
     saveCompletionEvents(userId, events);
@@ -181,6 +197,7 @@ export function DashboardNew() {
         setDailyTodos(loadDailyTodos(user.id));
         setDayTracker(loadDayTracker(user.id));
         setLastMinPrep(loadLastMinPrepProgress(user.id));
+        setLldProgress(loadLldProgress(user.id));
         await loadProblemsData(user.id);
         void loadTodosData(user.id);
         void loadDayTrackerData(user.id);
@@ -208,6 +225,11 @@ export function DashboardNew() {
     if (activeTab === 'lastmin' && !loadedTabs.has('lastmin')) {
       setLoadedTabs((prev) => new Set(prev).add('lastmin'));
       void loadLastMinPrepData(currentUser.id);
+    }
+
+    if (activeTab === 'lld' && !loadedTabs.has('lld')) {
+      setLoadedTabs((prev) => new Set(prev).add('lld'));
+      void loadLldData(currentUser.id);
     }
 
     if (activeTab === 'analytics' && !loadedTabs.has('analytics')) {
@@ -275,6 +297,13 @@ export function DashboardNew() {
     void syncLastMinPrepToDb(currentUser.id, rows);
   }, [currentUser]);
 
+  const handleLldChange = useCallback((rows: LldProgress[]) => {
+    if (!currentUser) return;
+    setLldProgress(rows);
+    saveLldProgress(currentUser.id, rows);
+    void syncLldToDb(currentUser.id, rows);
+  }, [currentUser]);
+
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
     if (!currentUser) return;
     const numId = parseInt(questionId.split('-')[1]);
@@ -310,6 +339,7 @@ export function DashboardNew() {
     setDayTracker(null);
     setDayTrackerSync('idle');
     setLastMinPrep([]);
+    setLldProgress([]);
     setLoadedTabs(new Set());
     setReminderEnabled(false);
     setReminderToast(null);
@@ -555,6 +585,14 @@ export function DashboardNew() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('lld')}
+            className={`main-tab ${activeTab === 'lld' ? 'main-tab--active' : ''}`}
+          >
+            <Boxes className="w-4 h-4" strokeWidth={1.75} />
+            LLD
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('analytics')}
             className={`main-tab ${activeTab === 'analytics' ? 'main-tab--active' : ''}`}
           >
@@ -600,6 +638,14 @@ export function DashboardNew() {
             userId={currentUser.id}
             progress={lastMinPrep}
             onProgressChange={handleLastMinPrepChange}
+          />
+        )}
+
+        {activeTab === 'lld' && currentUser && (
+          <LldPanel
+            userId={currentUser.id}
+            progress={lldProgress}
+            onProgressChange={handleLldChange}
           />
         )}
 

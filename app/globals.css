@@ -1726,3 +1726,149 @@ html.is-scrolling .progress-fill {
   padding-left: 26px;
 }
 
+/* ── LLD ─────────────────────────────────────────────────────── */
+
+.lld-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .lld-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.lld-stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lld-stat-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748B;
+  margin-bottom: 4px;
+}
+
+.lld-stat-value {
+  font-size: 1.375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.lld-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lld-item {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lld-item--done {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.22);
+}
+
+.lld-item--revise {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.lld-item-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lld-item-status-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.lld-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748B;
+  font-variant-numeric: tabular-nums;
+}
+
+.lld-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.lld-focus {
+  font-size: 0.8125rem;
+  color: #94A3B8;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.lld-notes-preview {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  color: #94A3B8;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.lld-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  padding-left: 32px;
+}
+
+.lld-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #CBD5E1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lld-status-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lld-status-btn.is-active-done {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86EFAC;
+}
+
+.lld-status-btn.is-active-revise {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #FCD34D;
+}
+
+.lld-notes-editor {
+  margin-top: 10px;
+  padding-left: 32px;
+}
+
+

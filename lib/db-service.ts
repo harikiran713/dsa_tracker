@@ -14,6 +14,12 @@ import {
   mergeLastMinPrepProgress,
 } from './last-min-prep';
 import {
+  LldProgress,
+  loadLldProgress,
+  saveLldProgress,
+  mergeLldProgress,
+} from './lld';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -42,7 +48,7 @@ function saveUserToCache(user: User): void {
 function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || oldUserId === newUserId || typeof window === 'undefined') return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -433,6 +439,33 @@ export async function syncLastMinPrepToDb(
 ): Promise<boolean> {
   if (!isOnlineUserId(userId)) return false;
   const result = await apiJson<{ ok: boolean }>('/api/last-min-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function loadLldFromDb(userId: string): Promise<LldProgress[]> {
+  const local = loadLldProgress(userId);
+  if (!isOnlineUserId(userId)) return local;
+
+  const remote =
+    (await apiJson<LldProgress[]>(
+      `/api/lld?userId=${encodeURIComponent(userId)}`
+    )) ?? [];
+
+  const merged = mergeLldProgress(local, remote);
+  saveLldProgress(userId, merged);
+  await syncLldToDb(userId, merged);
+  return merged;
+}
+
+export async function syncLldToDb(
+  userId: string,
+  progress: LldProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/lld', {
     method: 'PUT',
     body: JSON.stringify({ userId, progress }),
   });

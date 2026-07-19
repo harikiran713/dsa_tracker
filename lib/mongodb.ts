@@ -42,6 +42,10 @@ async function ensureIndexes(db: Db): Promise<void> {
         { user_id: 1, leetcode_id: 1 },
         { unique: true }
       ),
+      db.collection('lld_progress').createIndex(
+        { user_id: 1, topic_id: 1 },
+        { unique: true }
+      ),
     ]);
     indexesEnsured = true;
   } catch (error) {
