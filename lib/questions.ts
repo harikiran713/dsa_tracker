@@ -243,6 +243,21 @@ const mediumQuestions = [
   'Knight Dialer',
   'Minimize the Difference Between Target and Chosen Elements',
   'Longest Path With Different Adjacent Characters',
+  // Sliding-window / subarray set (append-only)
+  'Longest Subarray With At Most K Frequency',
+  'Count the Number of Good Subarrays',
+  'Count Substrings That Satisfy K-Constraint I',
+  'Longest Continuous Subarray With Absolute Diff Less Than or Equal to Limit',
+  'Continuous Subarrays',
+  'Longest Nice Subarray',
+  'Minimum Number of Flips to Make the Binary String Alternating',
+  // Math / combinatorics set (append-only)
+  'New 21 Game',
+  'Fraction to Recurring Decimal',
+  'Minimum Operations to Make the Integer Zero',
+  'Count Good Numbers',
+  'Closest Prime Numbers in Range',
+  'Distribute Candies Among Children II',
 ];
 
 // Phase 3: Hard
@@ -389,6 +404,22 @@ const hardQuestions = [
   'Count of Integers',
   'Binary Tree Cameras',
   'Delivering Boxes from Storage to Ports',
+  // Hard sliding-window / subarray set (append-only)
+  'Count Subarrays Where Max Appears At Least K Times',
+  'Count Substrings Containing Every Vowel and K Consonants II',
+  'Count Substrings That Satisfy K-Constraint II',
+  'Find Subarray With Bitwise AND Closest to K',
+  'Find X-Sum of All K-Long Subarrays II',
+  // Hard math / combinatorics set (append-only)
+  'Number of Ways to Reorder Array to Get Same BST',
+  'Count the Number of Ideal Arrays',
+  'Apply Operations to Maximize Score',
+  'Sorted GCD Pair Queries',
+  'Total Characters After Transformations II',
+  'Fancy Sequence',
+  'Find the Count of Good Integers',
+  'Poor Pigs',
+  'Sum of k-Mirror Numbers',
 ];
 
 export function initializeQuestions(): Question[] {
