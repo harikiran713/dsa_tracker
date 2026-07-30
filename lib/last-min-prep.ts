@@ -7,6 +7,8 @@ export interface LastMinPrepQuestion {
   difficulty: PrepDifficulty;
   category: string;
   pattern: string;
+  /** Optional custom URL (e.g. GeeksforGeeks). Defaults to LeetCode. */
+  url?: string;
 }
 
 export interface LastMinPrepProgress {
@@ -29,9 +31,10 @@ function q(
   title: string,
   difficulty: PrepDifficulty,
   category: string,
-  pattern: string
+  pattern: string,
+  url?: string
 ): LastMinPrepQuestion {
-  return { leetcodeId, title, difficulty, category, pattern };
+  return { leetcodeId, title, difficulty, category, pattern, url };
 }
 
 export const LAST_MIN_PREP_CATEGORIES: LastMinPrepCategory[] = [
@@ -425,6 +428,26 @@ export const LAST_MIN_PREP_CATEGORIES: LastMinPrepCategory[] = [
       q(1312, 'Minimum Insertion Steps to Make a String Palindrome', 'Hard', '30. String DP / Sequence DP', 'Palindrome DP'),
     ],
   },
+  {
+    id: 'kadane',
+    name: '31. Kadane Pattern',
+    pattern: 'Kadane / max-min subarray',
+    questions: [
+      q(53, 'Maximum Subarray', 'Easy', '31. Kadane Pattern', 'Classic Kadane', 'https://leetcode.com/problems/maximum-subarray/'),
+      q(
+        900001,
+        'Minimum Subarray Sum (Smallest Sum Contiguous Subarray)',
+        'Medium',
+        '31. Kadane Pattern',
+        'Kadane for minimum',
+        'https://www.geeksforgeeks.org/problems/smallest-sum-contiguous-subarray/1'
+      ),
+      q(152, 'Maximum Product Subarray', 'Medium', '31. Kadane Pattern', 'Kadane with min/max product', 'https://leetcode.com/problems/maximum-product-subarray/'),
+      q(1186, 'Maximum Subarray Sum with One Deletion', 'Medium', '31. Kadane Pattern', 'Kadane + one deletion', 'https://leetcode.com/problems/maximum-subarray-sum-with-one-deletion/'),
+      q(1749, 'Maximum Absolute Sum of Any Subarray', 'Medium', '31. Kadane Pattern', 'Max of |max| and |min| Kadane', 'https://leetcode.com/problems/maximum-absolute-sum-of-any-subarray/'),
+      q(918, 'Maximum Sum Circular Subarray', 'Medium', '31. Kadane Pattern', 'Circular Kadane', 'https://leetcode.com/problems/maximum-sum-circular-subarray/'),
+    ],
+  },
 ];
 
 export function getAllLastMinPrepQuestions(): LastMinPrepQuestion[] {
@@ -440,7 +463,8 @@ export function getUniqueLastMinPrepQuestions(): LastMinPrepQuestion[] {
   return Array.from(map.values());
 }
 
-export function lastMinPrepLeetcodeUrl(title: string, leetcodeId: number): string {
+export function lastMinPrepLeetcodeUrl(title: string, leetcodeId: number, url?: string): string {
+  if (url) return url;
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -448,6 +472,10 @@ export function lastMinPrepLeetcodeUrl(title: string, leetcodeId: number): strin
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
   return `https://leetcode.com/problems/${slug}/`;
+}
+
+export function getPrepQuestionUrl(question: LastMinPrepQuestion): string {
+  return lastMinPrepLeetcodeUrl(question.title, question.leetcodeId, question.url);
 }
 
 export function emptyPrepProgress(userId: string, leetcodeId: number): LastMinPrepProgress {

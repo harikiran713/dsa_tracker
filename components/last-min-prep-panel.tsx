@@ -9,7 +9,7 @@ import {
   emptyPrepProgress,
   getPrepStats,
   getUniqueLastMinPrepQuestions,
-  lastMinPrepLeetcodeUrl,
+  getPrepQuestionUrl,
   progressMapFromRows,
 } from '@/lib/last-min-prep';
 import {
@@ -110,7 +110,7 @@ export function LastMinPrepPanel({
             <div>
               <h2 className="font-semibold text-white text-lg">Last Min Prep</h2>
               <p className="text-sm" style={{ color: '#64748B' }}>
-                {uniqueTotal} must-do problems across 30 patterns. Track Done / Revise / notes.
+                {uniqueTotal} must-do problems across {LAST_MIN_PREP_CATEGORIES.length} patterns. Track Done / Revise / notes.
               </p>
             </div>
           </div>
@@ -216,7 +216,7 @@ export function LastMinPrepPanel({
                               </span>
                             </div>
                             <a
-                              href={lastMinPrepLeetcodeUrl(q.title, q.leetcodeId)}
+                              href={getPrepQuestionUrl(q)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="last-min-title"
