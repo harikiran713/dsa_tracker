@@ -450,17 +450,187 @@ export const LAST_MIN_PREP_CATEGORIES: LastMinPrepCategory[] = [
   },
 ];
 
+/** CP Learning extras (moved out of Last Min Prep). */
+export const CP_LEARNING_CATEGORIES: LastMinPrepCategory[] = [
+  {
+    id: 'math',
+    name: '1. Math',
+    pattern: 'Number theory / geometry / combinatorics',
+    questions: [
+      q(2523, 'Closest Prime Numbers in Range', 'Medium', '1. Math', 'Prime Numbers'),
+      q(3312, 'Sorted GCD Pair Queries', 'Hard', '1. Math', 'GCD'),
+      q(1390, 'Four Divisors', 'Medium', '1. Math', 'Divisors'),
+      q(1015, 'Smallest Integer Divisible by K', 'Medium', '1. Math', 'Number Theory'),
+      q(587, 'Erect the Fence', 'Hard', '1. Math', 'Geometry'),
+      q(149, 'Max Points on a Line', 'Hard', '1. Math', 'Coordinate Geometry'),
+      q(1359, 'Count All Valid Pickup and Delivery Options', 'Hard', '1. Math', 'Combinatorics'),
+      q(3518, 'Smallest Palindromic Rearrangement II', 'Hard', '1. Math', 'Permutations'),
+      q(1569, 'Number of Ways to Reorder Array to Get Same BST', 'Hard', '1. Math', 'Binomial Coefficient'),
+      q(50, 'Pow(x, n)', 'Medium', '1. Math', 'Fast Power'),
+      q(1622, 'Fancy Sequence', 'Hard', '1. Math', 'Modular Arithmetic'),
+      q(319, 'Bulb Switcher', 'Medium', '1. Math', 'Mathematical Formula'),
+      q(2485, 'Find the Pivot Integer', 'Easy', '1. Math', 'Mathematical Observation'),
+      q(1502, 'Can Make Arithmetic Progression From Sequence', 'Easy', '1. Math', 'Arithmetic Progression'),
+      q(837, 'New 21 Game', 'Medium', '1. Math', 'Probability'),
+      q(2929, 'Distribute Candies Among Children II', 'Medium', '1. Math', 'Inclusion–Exclusion'),
+      q(166, 'Fraction to Recurring Decimal', 'Medium', '1. Math', 'Remainder / Modulo'),
+      q(258, 'Add Digits', 'Easy', '1. Math', 'Digit Mathematics'),
+      q(168, 'Excel Sheet Column Title', 'Easy', '1. Math', 'Base Conversion'),
+      q(2081, 'Sum of k-Mirror Numbers', 'Hard', '1. Math', 'Palindrome'),
+      q(3337, 'Total Characters in String After Transformations II', 'Hard', '1. Math', 'Matrix Exponentiation'),
+      q(3623, 'Count Number of Trapezoids I', 'Medium', '1. Math', 'Prefix Sum / Frequency'),
+      q(2033, 'Minimum Operations to Make a Uni-Value Grid', 'Medium', '1. Math', 'Grid Mathematics'),
+      q(1266, 'Minimum Time Visiting All Points', 'Easy', '1. Math', 'Distance Formula'),
+      q(587, 'Erect the Fence', 'Hard', '1. Math', 'Convex Hull'),
+    ],
+  },
+  {
+    id: 'line-sweep',
+    name: '2. Line Sweep',
+    pattern: 'Events / difference array / priority queue',
+    questions: [
+      q(1854, 'Maximum Population Year', 'Easy', '2. Line Sweep', 'Basic +1 birth / -1 death'),
+      q(1094, 'Car Pooling', 'Medium', '2. Line Sweep', 'Difference array / prefix-sum sweep'),
+      q(218, 'The Skyline Problem', 'Hard', '2. Line Sweep', 'Events + priority queue'),
+    ],
+  },
+  {
+    id: 'partition-dp',
+    name: '3. Partition DP',
+    pattern: 'Partition / cut DP',
+    questions: [
+      q(132, 'Palindrome Partitioning II', 'Hard', '3. Partition DP', 'Basic partition DP'),
+      q(1043, 'Partition Array for Maximum Sum', 'Medium', '3. Partition DP', 'Fixed-length partition DP'),
+      q(1278, 'Palindrome Partitioning III', 'Hard', '3. Partition DP', 'Partition into exactly k groups'),
+    ],
+  },
+  {
+    id: 'digit-dp',
+    name: '4. Digit DP',
+    pattern: 'Digit DP / tight constraint',
+    questions: [
+      q(233, 'Number of Digit One', 'Hard', '4. Digit DP', 'Position, tight, count'),
+      q(2376, 'Count Special Integers', 'Hard', '4. Digit DP', 'Position, tight, started, mask'),
+    ],
+  },
+  {
+    id: 'segment-tree',
+    name: '5. Segment Tree',
+    pattern: 'Segment tree / lazy / compression',
+    questions: [
+      q(307, 'Range Sum Query - Mutable', 'Medium', '5. Segment Tree', 'Build + point update + range sum'),
+      q(315, 'Count of Smaller Numbers After Self', 'Hard', '5. Segment Tree', 'Coordinate compression + frequency'),
+      q(699, 'Falling Squares', 'Hard', '5. Segment Tree', 'Range max + lazy / range update'),
+    ],
+  },
+  {
+    id: 'meet-in-the-middle',
+    name: '6. Meet in the Middle',
+    pattern: 'Split + subset sums / binary search',
+    questions: [
+      q(1755, 'Closest Subsequence Sum', 'Hard', '6. Meet in the Middle', 'Split + subset sums + binary search'),
+      q(2035, 'Partition Array Into Two Arrays to Minimize Sum Difference', 'Hard', '6. Meet in the Middle', 'Equal-size subsets + grouped sums'),
+      q(805, 'Split Array With Same Average', 'Hard', '6. Meet in the Middle', 'Average transform + subset matching'),
+    ],
+  },
+  {
+    id: 'zero-one-bfs',
+    name: '7. 0-1 BFS',
+    pattern: 'Deque BFS / 0-1 edge weights',
+    questions: [
+      q(1368, 'Minimum Cost to Make at Least One Valid Path in a Grid', 'Hard', '7. 0-1 BFS', '0/1 edges + deque front/back'),
+      q(2290, 'Minimum Obstacle Removal to Reach Corner', 'Hard', '7. 0-1 BFS', 'Grid shortest path with 0/1 cost'),
+    ],
+  },
+  {
+    id: 'bitmask-dp',
+    name: '8. Bitmask DP',
+    pattern: 'Mask DP / submask / profile',
+    questions: [
+      q(1879, 'Minimum XOR Sum of Two Arrays', 'Hard', '8. Bitmask DP', 'Matching-Based'),
+      q(943, 'Find the Shortest Superstring', 'Hard', '8. Bitmask DP', 'Hamiltonian Path/Cycle'),
+      q(1799, 'Maximize Score After N Operations', 'Hard', '8. Bitmask DP', 'Pairing Values'),
+      q(1494, 'Parallel Courses II', 'Hard', '8. Bitmask DP', 'DAG + Breaking into Groups'),
+      q(1349, 'Maximum Students Taking Exam', 'Hard', '8. Bitmask DP', 'Profile DP'),
+      q(1681, 'Minimum Incompatibility', 'Hard', '8. Bitmask DP', 'Submask Decomposition'),
+    ],
+  },
+  {
+    id: 'advanced-graphs',
+    name: '9. Advanced Graphs',
+    pattern: 'Eulerian / bipartite / Hamiltonian',
+    questions: [
+      q(332, 'Reconstruct Itinerary', 'Hard', '9. Advanced Graphs', 'Eulerian Path'),
+      q(785, 'Is Graph Bipartite?', 'Medium', '9. Advanced Graphs', 'Bipartite Graph'),
+      q(847, 'Shortest Path Visiting All Nodes', 'Hard', '9. Advanced Graphs', 'Hamiltonian Path'),
+    ],
+  },
+  {
+    id: 'advanced-strings',
+    name: '10. Advanced Strings',
+    pattern: 'Hashing / KMP / Z / Manacher / SAM',
+    questions: [
+      q(1044, 'Longest Duplicate Substring', 'Hard', '10. Advanced Strings', 'Rolling Hash'),
+      q(1392, 'Longest Happy Prefix', 'Hard', '10. Advanced Strings', 'KMP Algorithm'),
+      q(2223, 'Sum of Scores of Built Strings', 'Hard', '10. Advanced Strings', 'Z Algorithm'),
+      q(5, 'Longest Palindromic Substring', 'Medium', '10. Advanced Strings', "Manacher's Algorithm"),
+      q(1923, 'Longest Common Subpath', 'Hard', '10. Advanced Strings', 'Suffix Automaton'),
+      q(899, 'Orderly Queue', 'Hard', '10. Advanced Strings', "Booth's Algorithm"),
+    ],
+  },
+  {
+    id: 'advanced-range-xor',
+    name: '11. Advanced Range/XOR Algorithms',
+    pattern: 'XOR basis / sparse table / Mo’s',
+    questions: [
+      q(3630, 'Partition Array for Maximum XOR and AND', 'Hard', '11. Advanced Range/XOR Algorithms', 'XOR Basis / XOR Space'),
+      q(2104, 'Sum of Subarray Ranges', 'Medium', '11. Advanced Range/XOR Algorithms', 'Sparse Table'),
+      q(1906, 'Minimum Absolute Difference Queries', 'Medium', '11. Advanced Range/XOR Algorithms', "Mo's Algorithm"),
+    ],
+  },
+  {
+    id: 'binary-lifting',
+    name: '12. Binary Lifting',
+    pattern: 'Ancestor jumps / LCA / path queries',
+    questions: [
+      q(1483, 'Kth Ancestor of a Tree Node', 'Hard', '12. Binary Lifting', 'Binary lifting table + 2^j jumps'),
+      q(3559, 'Number of Ways to Assign Edge Weights II', 'Hard', '12. Binary Lifting', 'LCA + binary lifting + path distance'),
+      q(3534, 'Path Existence Queries in a Graph II', 'Hard', '12. Binary Lifting', 'Advanced binary lifting for path/query'),
+    ],
+  },
+];
+
+export function getQuestionsFromCategories(
+  categories: LastMinPrepCategory[]
+): LastMinPrepQuestion[] {
+  return categories.flatMap((c) => c.questions);
+}
+
+export function getUniqueQuestionsFromCategories(
+  categories: LastMinPrepCategory[]
+): LastMinPrepQuestion[] {
+  const map = new Map<number, LastMinPrepQuestion>();
+  for (const q of getQuestionsFromCategories(categories)) {
+    if (!map.has(q.leetcodeId)) map.set(q.leetcodeId, q);
+  }
+  return Array.from(map.values());
+}
+
 export function getAllLastMinPrepQuestions(): LastMinPrepQuestion[] {
-  return LAST_MIN_PREP_CATEGORIES.flatMap((c) => c.questions);
+  return getQuestionsFromCategories(LAST_MIN_PREP_CATEGORIES);
 }
 
 /** Unique by leetcode id (347 appears in two categories). */
 export function getUniqueLastMinPrepQuestions(): LastMinPrepQuestion[] {
-  const map = new Map<number, LastMinPrepQuestion>();
-  for (const q of getAllLastMinPrepQuestions()) {
-    if (!map.has(q.leetcodeId)) map.set(q.leetcodeId, q);
-  }
-  return Array.from(map.values());
+  return getUniqueQuestionsFromCategories(LAST_MIN_PREP_CATEGORIES);
+}
+
+export function getAllCpLearningQuestions(): LastMinPrepQuestion[] {
+  return getQuestionsFromCategories(CP_LEARNING_CATEGORIES);
+}
+
+export function getUniqueCpLearningQuestions(): LastMinPrepQuestion[] {
+  return getUniqueQuestionsFromCategories(CP_LEARNING_CATEGORIES);
 }
 
 export function lastMinPrepLeetcodeUrl(title: string, leetcodeId: number, url?: string): string {
@@ -506,6 +676,11 @@ export function saveLastMinPrepProgress(userId: string, rows: LastMinPrepProgres
   localStorage.setItem(storageKey(userId), JSON.stringify(rows));
 }
 
+export function clearLastMinPrepProgress(userId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(storageKey(userId));
+}
+
 export function mergeLastMinPrepProgress(
   local: LastMinPrepProgress[],
   remote: LastMinPrepProgress[]
@@ -528,15 +703,32 @@ export function progressMapFromRows(
   return map;
 }
 
-export function getPrepStats(rows: LastMinPrepProgress[], totalUnique: number) {
+export function getPrepStats(
+  rows: LastMinPrepProgress[],
+  questionsOrTotal: LastMinPrepQuestion[] | number
+) {
   const map = progressMapFromRows(rows);
+  if (typeof questionsOrTotal === 'number') {
+    let done = 0;
+    let revise = 0;
+    for (const row of map.values()) {
+      if (row.status === 'done') done++;
+      else if (row.status === 'revise') revise++;
+    }
+    const totalUnique = questionsOrTotal;
+    const todo = Math.max(0, totalUnique - done - revise);
+    return { done, revise, todo, total: totalUnique, tracked: map.size };
+  }
+
+  const uniqueIds = new Set(questionsOrTotal.map((q) => q.leetcodeId));
   let done = 0;
   let revise = 0;
-  for (const row of map.values()) {
-    if (row.status === 'done') done++;
-    else if (row.status === 'revise') revise++;
+  for (const id of uniqueIds) {
+    const status = map.get(id)?.status ?? 'todo';
+    if (status === 'done') done++;
+    else if (status === 'revise') revise++;
   }
-  const tracked = map.size;
+  const totalUnique = uniqueIds.size;
   const todo = Math.max(0, totalUnique - done - revise);
-  return { done, revise, todo, total: totalUnique, tracked };
+  return { done, revise, todo, total: totalUnique, tracked: map.size };
 }

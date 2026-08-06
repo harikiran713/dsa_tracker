@@ -1626,6 +1626,16 @@ html.is-scrolling .progress-fill {
   gap: 8px;
 }
 
+.last-min-subtopic {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #FB7185;
+}
+
 .last-min-item {
   padding: 12px 14px;
   border-radius: 12px;

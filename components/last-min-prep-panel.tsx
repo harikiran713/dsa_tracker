@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   LAST_MIN_PREP_CATEGORIES,
+  LastMinPrepCategory,
   LastMinPrepProgress,
   LastMinPrepQuestion,
   PrepStatus,
   emptyPrepProgress,
   getPrepStats,
-  getUniqueLastMinPrepQuestions,
+  getUniqueQuestionsFromCategories,
   getPrepQuestionUrl,
   progressMapFromRows,
 } from '@/lib/last-min-prep';
@@ -28,27 +29,49 @@ interface LastMinPrepPanelProps {
   userId: string;
   progress: LastMinPrepProgress[];
   onProgressChange: (rows: LastMinPrepProgress[]) => void;
+  categories?: LastMinPrepCategory[];
+  title?: string;
+  description?: string;
+  accent?: string;
+  icon?: ReactNode;
 }
 
 type StatusFilter = 'all' | PrepStatus;
+
+const SUBTOPIC_CATEGORY_IDS = new Set([
+  'math',
+  'bitmask-dp',
+  'advanced-graphs',
+  'advanced-strings',
+  'advanced-range-xor',
+]);
 
 export function LastMinPrepPanel({
   userId,
   progress,
   onProgressChange,
+  categories = LAST_MIN_PREP_CATEGORIES,
+  title = 'Last Min Prep',
+  description,
+  accent = '#FB7185',
+  icon,
 }: LastMinPrepPanelProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(
-    LAST_MIN_PREP_CATEGORIES[0]?.id ?? null
+    categories[0]?.id ?? null
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [notesFor, setNotesFor] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
 
-  const uniqueTotal = useMemo(() => getUniqueLastMinPrepQuestions().length, []);
+  const uniqueQuestions = useMemo(
+    () => getUniqueQuestionsFromCategories(categories),
+    [categories]
+  );
+  const uniqueTotal = uniqueQuestions.length;
   const progressMap = useMemo(() => progressMapFromRows(progress), [progress]);
   const stats = useMemo(
-    () => getPrepStats(progress, uniqueTotal),
-    [progress, uniqueTotal]
+    () => getPrepStats(progress, uniqueQuestions),
+    [progress, uniqueQuestions]
   );
 
   const upsert = (leetcodeId: number, patch: Partial<LastMinPrepProgress>) => {
@@ -92,6 +115,9 @@ export function LastMinPrepPanel({
   };
 
   const pct = uniqueTotal > 0 ? Math.round((stats.done / uniqueTotal) * 100) : 0;
+  const subtitle =
+    description ??
+    `${uniqueTotal} must-do problems across ${categories.length} patterns. Track Done / Revise / notes.`;
 
   return (
     <div className="last-min-prep">
@@ -101,16 +127,16 @@ export function LastMinPrepPanel({
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{
-                background: 'rgba(244,63,94,0.15)',
-                border: '1px solid rgba(244,63,94,0.28)',
+                background: `${accent}26`,
+                border: `1px solid ${accent}47`,
               }}
             >
-              <Rocket className="w-5 h-5" style={{ color: '#FB7185' }} strokeWidth={1.75} />
+              {icon ?? <Rocket className="w-5 h-5" style={{ color: accent }} strokeWidth={1.75} />}
             </div>
             <div>
-              <h2 className="font-semibold text-white text-lg">Last Min Prep</h2>
+              <h2 className="font-semibold text-white text-lg">{title}</h2>
               <p className="text-sm" style={{ color: '#64748B' }}>
-                {uniqueTotal} must-do problems across {LAST_MIN_PREP_CATEGORIES.length} patterns. Track Done / Revise / notes.
+                {subtitle}
               </p>
             </div>
           </div>
@@ -131,13 +157,19 @@ export function LastMinPrepPanel({
           </div>
           <div className="last-min-stat">
             <p className="last-min-stat-label">Progress</p>
-            <p className="last-min-stat-value" style={{ color: '#FB7185' }}>{pct}%</p>
+            <p className="last-min-stat-value" style={{ color: accent }}>{pct}%</p>
           </div>
         </div>
 
         <div className="mt-5">
           <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#F43F5E,#FB7185)' }} />
+            <div
+              className="progress-fill"
+              style={{
+                width: `${pct}%`,
+                background: `linear-gradient(90deg,${accent},${accent}cc)`,
+              }}
+            />
           </div>
         </div>
 
@@ -156,7 +188,7 @@ export function LastMinPrepPanel({
       </div>
 
       <div className="last-min-categories">
-        {LAST_MIN_PREP_CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const visible = cat.questions.filter((q) => matchesFilter(q.leetcodeId));
           if (statusFilter !== 'all' && visible.length === 0) return null;
 
@@ -188,102 +220,127 @@ export function LastMinPrepPanel({
 
               {isOpen && (
                 <ul className="last-min-list">
-                  {visible.map((q) => {
-                    const status = getStatus(q.leetcodeId);
-                    const notes = getNotes(q.leetcodeId);
-                    const editing = notesFor === q.leetcodeId;
+                  {(() => {
+                    const showSubtopics = SUBTOPIC_CATEGORY_IDS.has(cat.id);
+                    const subtopicIndex = new Map<string, number>();
+                    if (showSubtopics) {
+                      let n = 0;
+                      for (const q of cat.questions) {
+                        if (!subtopicIndex.has(q.pattern)) {
+                          subtopicIndex.set(q.pattern, ++n);
+                        }
+                      }
+                    }
+                    let lastSubtopic: string | null = null;
 
-                    return (
-                      <li
-                        key={`${cat.id}-${q.leetcodeId}`}
-                        className={`last-min-item ${status === 'done' ? 'last-min-item--done' : ''} ${status === 'revise' ? 'last-min-item--revise' : ''}`}
-                      >
-                        <div className="last-min-item-main">
-                          <div className="last-min-item-status-icon">
-                            {status === 'done' ? (
-                              <CheckCircle2 className="w-4 h-4" style={{ color: '#4ADE80' }} />
-                            ) : status === 'revise' ? (
-                              <AlertCircle className="w-4 h-4" style={{ color: '#FCD34D' }} />
-                            ) : (
-                              <Circle className="w-4 h-4" style={{ color: '#64748B' }} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className="last-min-lc">#{q.leetcodeId}</span>
-                              <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
-                                {q.difficulty}
-                              </span>
+                    return visible.map((q, qi) => {
+                      const status = getStatus(q.leetcodeId);
+                      const notes = getNotes(q.leetcodeId);
+                      const editing = notesFor === q.leetcodeId;
+                      const showSubtopicHeader =
+                        showSubtopics && q.pattern !== lastSubtopic;
+                      if (showSubtopicHeader) lastSubtopic = q.pattern;
+                      const subtopicNum = subtopicIndex.get(q.pattern);
+
+                      return (
+                        <li
+                          key={`${cat.id}-${q.leetcodeId}-${q.pattern}-${qi}`}
+                          className={`last-min-item ${status === 'done' ? 'last-min-item--done' : ''} ${status === 'revise' ? 'last-min-item--revise' : ''}`}
+                        >
+                          {showSubtopicHeader && (
+                            <p className="last-min-subtopic" style={{ color: accent }}>
+                              {subtopicNum}. {q.pattern}
+                            </p>
+                          )}
+                          <div className="last-min-item-main">
+                            <div className="last-min-item-status-icon">
+                              {status === 'done' ? (
+                                <CheckCircle2 className="w-4 h-4" style={{ color: '#4ADE80' }} />
+                              ) : status === 'revise' ? (
+                                <AlertCircle className="w-4 h-4" style={{ color: '#FCD34D' }} />
+                              ) : (
+                                <Circle className="w-4 h-4" style={{ color: '#64748B' }} />
+                              )}
                             </div>
-                            <a
-                              href={getPrepQuestionUrl(q)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="last-min-title"
-                            >
-                              {q.title}
-                              <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2} />
-                            </a>
-                            <p className="text-xs mt-1" style={{ color: '#64748B' }}>{q.pattern}</p>
-                            {notes && !editing && (
-                              <p className="last-min-notes-preview">{notes}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="last-min-item-actions">
-                          <button
-                            type="button"
-                            className={`last-min-status-btn ${status === 'done' ? 'is-active-done' : ''}`}
-                            onClick={() => setStatus(q.leetcodeId, status === 'done' ? 'todo' : 'done')}
-                          >
-                            Done
-                          </button>
-                          <button
-                            type="button"
-                            className={`last-min-status-btn ${status === 'revise' ? 'is-active-revise' : ''}`}
-                            onClick={() => setStatus(q.leetcodeId, status === 'revise' ? 'todo' : 'revise')}
-                          >
-                            Revise
-                          </button>
-                          <button
-                            type="button"
-                            className="last-min-status-btn"
-                            onClick={() => openNotes(q)}
-                            aria-label="Notes"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
-                          </button>
-                        </div>
-
-                        {editing && (
-                          <div className="last-min-notes-editor">
-                            <textarea
-                              value={notesDraft}
-                              onChange={(e) => setNotesDraft(e.target.value)}
-                              placeholder="Notes, approach, pitfalls…"
-                              rows={3}
-                              className="glass-input w-full text-sm"
-                              style={{ borderRadius: 12, padding: 12, resize: 'vertical' }}
-                            />
-                            <div className="flex gap-2 mt-2">
-                              <button type="button" className="btn btn-sm btn-primary" onClick={saveNotes}>
-                                Save notes
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-secondary"
-                                onClick={() => setNotesFor(null)}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="last-min-lc">#{q.leetcodeId}</span>
+                                <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
+                                  {q.difficulty}
+                                </span>
+                              </div>
+                              <a
+                                href={getPrepQuestionUrl(q)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="last-min-title"
                               >
-                                <X className="w-3.5 h-3.5" />
-                                Cancel
-                              </button>
+                                {q.title}
+                                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2} />
+                              </a>
+                              {!showSubtopics && (
+                                <p className="text-xs mt-1" style={{ color: '#64748B' }}>{q.pattern}</p>
+                              )}
+                              {notes && !editing && (
+                                <p className="last-min-notes-preview">{notes}</p>
+                              )}
                             </div>
                           </div>
-                        )}
-                      </li>
-                    );
-                  })}
+
+                          <div className="last-min-item-actions">
+                            <button
+                              type="button"
+                              className={`last-min-status-btn ${status === 'done' ? 'is-active-done' : ''}`}
+                              onClick={() => setStatus(q.leetcodeId, status === 'done' ? 'todo' : 'done')}
+                            >
+                              Done
+                            </button>
+                            <button
+                              type="button"
+                              className={`last-min-status-btn ${status === 'revise' ? 'is-active-revise' : ''}`}
+                              onClick={() => setStatus(q.leetcodeId, status === 'revise' ? 'todo' : 'revise')}
+                            >
+                              Revise
+                            </button>
+                            <button
+                              type="button"
+                              className="last-min-status-btn"
+                              onClick={() => openNotes(q)}
+                              aria-label="Notes"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
+                            </button>
+                          </div>
+
+                          {editing && (
+                            <div className="last-min-notes-editor">
+                              <textarea
+                                value={notesDraft}
+                                onChange={(e) => setNotesDraft(e.target.value)}
+                                placeholder="Notes, approach, pitfalls…"
+                                rows={3}
+                                className="glass-input w-full text-sm"
+                                style={{ borderRadius: 12, padding: 12, resize: 'vertical' }}
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button type="button" className="btn btn-sm btn-primary" onClick={saveNotes}>
+                                  Save notes
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-secondary"
+                                  onClick={() => setNotesFor(null)}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    });
+                  })()}
                 </ul>
               )}
             </div>
