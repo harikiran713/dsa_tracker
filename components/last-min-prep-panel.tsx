@@ -22,6 +22,7 @@ import {
   ExternalLink,
   MessageSquare,
   Rocket,
+  RotateCcw,
   X,
 } from 'lucide-react';
 
@@ -62,6 +63,7 @@ export function LastMinPrepPanel({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [notesFor, setNotesFor] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const uniqueQuestions = useMemo(
     () => getUniqueQuestionsFromCategories(categories),
@@ -89,6 +91,15 @@ export function LastMinPrepPanel({
 
   const setStatus = (leetcodeId: number, status: PrepStatus) => {
     upsert(leetcodeId, { status });
+  };
+
+  const resetMyProgress = () => {
+    const idsInThisPanel = new Set(uniqueQuestions.map((q) => q.leetcodeId));
+    const remaining = progress.filter((p) => !idsInThisPanel.has(p.leetcode_id));
+    onProgressChange(remaining);
+    setConfirmReset(false);
+    setNotesFor(null);
+    setStatusFilter('all');
   };
 
   const openNotes = (q: LastMinPrepQuestion) => {
@@ -140,6 +151,39 @@ export function LastMinPrepPanel({
               </p>
             </div>
           </div>
+
+          {!confirmReset ? (
+            <button
+              type="button"
+              onClick={() => setConfirmReset(true)}
+              className="btn btn-sm btn-secondary flex items-center gap-1.5 self-start sm:self-center"
+              title="Reset your progress only"
+            >
+              <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
+              Reset my progress
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+              <span className="text-xs" style={{ color: '#FCD34D' }}>
+                Clear Done/Revise for your account?
+              </span>
+              <button
+                type="button"
+                onClick={resetMyProgress}
+                className="btn btn-sm btn-danger flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
+                Confirm reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className="btn btn-sm btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="last-min-stats">
