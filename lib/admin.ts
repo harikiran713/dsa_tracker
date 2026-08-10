@@ -5,7 +5,7 @@ export const ADMIN_USERNAME = 'adminharikiran';
  * Extra PIN required for admin API actions (stronger than username alone).
  * Entered once per browser session in the admin UI.
  */
-export const ADMIN_PIN = 'hari@admin2026';
+export const ADMIN_PIN = '0000';
 
 export const ADMIN_PIN_STORAGE_KEY = 'admin_pin_verified';
 
