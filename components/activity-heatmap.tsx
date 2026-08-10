@@ -1,64 +1,94 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CompletionEvent, buildActivityHeatmap } from '@/lib/activity';
-import { Flame } from 'lucide-react';
+import { CompletionEvent, buildActivityHeatmap, getCompletionYears } from '@/lib/activity';
 
 interface ActivityHeatmapProps {
   completionEvents: CompletionEvent[];
+  /** Compact for profile; full for analytics */
+  variant?: 'full' | 'compact';
+  title?: string;
 }
 
+/** LeetCode submission-style orange levels */
 const LEVEL_COLORS = [
-  'rgba(255,255,255,0.06)',
-  '#0E4429',
-  '#006D32',
-  '#26A641',
-  '#39D353',
+  'rgba(255, 255, 255, 0.06)',
+  'rgba(255, 161, 22, 0.25)',
+  'rgba(255, 161, 22, 0.45)',
+  'rgba(255, 161, 22, 0.7)',
+  '#FFA116',
 ];
 
 const DOW_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
-export function ActivityHeatmap({ completionEvents }: ActivityHeatmapProps) {
-  const data = useMemo(() => buildActivityHeatmap(completionEvents), [completionEvents]);
+export function ActivityHeatmap({
+  completionEvents,
+  variant = 'full',
+  title = 'Submissions',
+}: ActivityHeatmapProps) {
+  const years = useMemo(() => getCompletionYears(completionEvents), [completionEvents]);
+  const [yearMode, setYearMode] = useState<'rolling' | number>('rolling');
+
+  const data = useMemo(
+    () =>
+      buildActivityHeatmap(
+        completionEvents,
+        new Date(),
+        yearMode === 'rolling' ? undefined : yearMode
+      ),
+    [completionEvents, yearMode]
+  );
+
   const [tip, setTip] = useState<{ date: string; count: number; x: number; y: number } | null>(
     null
   );
 
+  const subtitle =
+    yearMode === 'rolling'
+      ? `${data.total} submissions in the past year`
+      : `${data.total} submissions in ${yearMode}`;
+
   return (
-    <div className="glass-panel p-5 mb-6">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: 'rgba(57,211,83,0.12)',
-              border: '1px solid rgba(57,211,83,0.25)',
-            }}
-          >
-            <Flame className="w-4 h-4" style={{ color: '#39D353' }} strokeWidth={1.75} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-white">Contribution heatmap</h3>
-            <p className="text-xs" style={{ color: '#64748B' }}>
-              {data.total} problems in the last year · {data.activeDays} active days
-            </p>
-          </div>
+    <div className={`glass-panel ${variant === 'compact' ? 'p-4' : 'p-5'} mb-6`}>
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="font-semibold text-white">{title}</h3>
+          <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+            {subtitle}
+            <span style={{ color: '#64748B' }}>
+              {' '}
+              · {data.activeDays} active days · streak {data.currentStreak}d (best {data.bestStreak}d)
+            </span>
+          </p>
         </div>
-        <div className="flex gap-4 text-xs tabular-nums" style={{ color: '#94A3B8' }}>
-          <span>
-            Current streak{' '}
-            <strong className="text-white">{data.currentStreak}</strong>d
-          </span>
-          <span>
-            Best{' '}
-            <strong className="text-white">{data.bestStreak}</strong>d
-          </span>
+
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setYearMode('rolling')}
+            className={`filter-pill ${yearMode === 'rolling' ? 'active-all' : ''}`}
+          >
+            Past year
+          </button>
+          {years.map((y) => (
+            <button
+              key={y}
+              type="button"
+              onClick={() => setYearMode(y)}
+              className={`filter-pill ${yearMode === y ? 'active-all' : ''}`}
+            >
+              {y}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="heatmap-scroll">
         <div className="heatmap-wrap">
-          <div className="heatmap-months">
+          <div
+            className="heatmap-months"
+            style={{ gridTemplateColumns: `28px repeat(${data.weeks.length}, 11px)` }}
+          >
             {data.monthLabels.map((m) => (
               <span
                 key={`${m.label}-${m.weekIndex}`}
@@ -122,12 +152,9 @@ export function ActivityHeatmap({ completionEvents }: ActivityHeatmapProps) {
       </div>
 
       {tip && (
-        <div
-          className="heatmap-tooltip"
-          style={{ left: tip.x, top: tip.y }}
-        >
+        <div className="heatmap-tooltip" style={{ left: tip.x, top: tip.y }}>
           <strong>
-            {tip.count} problem{tip.count === 1 ? '' : 's'}
+            {tip.count} submission{tip.count === 1 ? '' : 's'}
           </strong>
           <span> on {tip.date}</span>
         </div>

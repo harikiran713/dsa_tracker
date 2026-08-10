@@ -13,6 +13,7 @@ import { LldPanel } from './lld-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
 import { ProblemOfTheDayCard } from './problem-of-the-day';
+import { ProfilePanel } from './profile-panel';
 import {
   getOrCreateUser,
   getUserProgressLocal,
@@ -63,12 +64,12 @@ import { DailyTodoReminderToast } from './daily-todo-reminder-toast';
 import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu,
+  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'cplearning' | 'lld' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 export function DashboardNew() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -262,8 +263,11 @@ export function DashboardNew() {
       void loadLldData(currentUser.id);
     }
 
-    if (activeTab === 'analytics' && !loadedTabs.has('analytics')) {
-      setLoadedTabs((prev) => new Set(prev).add('analytics'));
+    if (
+      (activeTab === 'analytics' || activeTab === 'profile') &&
+      !loadedTabs.has('analytics')
+    ) {
+      setLoadedTabs((prev) => new Set(prev).add('analytics').add('profile'));
       void loadAnalyticsData(currentUser.id);
     }
   }, [activeTab, currentUser, loadedTabs]);
@@ -644,6 +648,14 @@ export function DashboardNew() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`main-tab ${activeTab === 'profile' ? 'main-tab--active' : ''}`}
+          >
+            <UserRound className="w-4 h-4" strokeWidth={1.75} />
+            Profile
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('analytics')}
             className={`main-tab ${activeTab === 'analytics' ? 'main-tab--active' : ''}`}
           >
@@ -713,12 +725,23 @@ export function DashboardNew() {
           />
         )}
 
+        {activeTab === 'profile' && currentUser && (
+          <ProfilePanel
+            user={currentUser}
+            questions={questionsWithProgress}
+            completionEvents={completionEvents}
+            dailyTodos={dailyTodos}
+            reviseCount={stats.revise}
+          />
+        )}
+
         {activeTab === 'analytics' && (
           <StatsDashboard
             completionEvents={completionEvents}
             dailyTodos={dailyTodos}
             reviseCount={stats.revise}
             userId={currentUser.id}
+            questions={questionsWithProgress}
           />
         )}
 

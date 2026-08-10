@@ -7,9 +7,11 @@ import {
   StatsPeriod,
   STATS_PERIOD_LABELS,
   computePeriodStats,
+  computeSolvedBreakdown,
   isInPeriod,
   dedupeCompletionEvents,
 } from '@/lib/activity';
+import { Question } from '@/lib/questions';
 import { BarChart3, CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
 import { ActivityHeatmap } from './activity-heatmap';
 import { NotesSearchPanel } from './notes-search-panel';
@@ -19,6 +21,7 @@ interface StatsDashboardProps {
   dailyTodos: DailyTodoItem[];
   reviseCount: number;
   userId?: string;
+  questions?: Question[];
 }
 
 export function StatsDashboard({
@@ -26,6 +29,7 @@ export function StatsDashboard({
   dailyTodos,
   reviseCount,
   userId,
+  questions = [],
 }: StatsDashboardProps) {
   const [period, setPeriod] = useState<StatsPeriod>('7d');
 
@@ -33,6 +37,8 @@ export function StatsDashboard({
     () => computePeriodStats(completionEvents, dailyTodos, period),
     [completionEvents, dailyTodos, period]
   );
+
+  const breakdown = useMemo(() => computeSolvedBreakdown(questions), [questions]);
 
   const recentCompletions = useMemo(
     () =>
@@ -137,7 +143,63 @@ export function StatsDashboard({
         ))}
       </div>
 
-      <ActivityHeatmap completionEvents={completionEvents} />
+      {questions.length > 0 && (
+        <div className="glass-panel p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div>
+              <h3 className="font-semibold text-white">Full solve stats</h3>
+              <p className="text-xs" style={{ color: '#64748B' }}>
+                All-time progress across the curated set
+              </p>
+            </div>
+            <p className="text-3xl font-bold tabular-nums" style={{ color: '#FFA116' }}>
+              {breakdown.totalDone}
+              <span className="text-base font-medium" style={{ color: '#64748B' }}>
+                /{breakdown.totalQuestions}
+              </span>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {(
+              [
+                ['Easy', breakdown.Easy, '#4ADE80'],
+                ['Medium', breakdown.Medium, '#FCD34D'],
+                ['Hard', breakdown.Hard, '#F87171'],
+              ] as const
+            ).map(([label, bucket, color]) => {
+              const pct = bucket.total > 0 ? Math.round((bucket.done / bucket.total) * 100) : 0;
+              return (
+                <div
+                  key={label}
+                  className="rounded-xl p-4"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold" style={{ color }}>
+                      {label}
+                    </span>
+                    <span className="text-sm tabular-nums text-white">
+                      {bucket.done}/{bucket.total}
+                    </span>
+                  </div>
+                  <div className="progress-track" style={{ height: 8 }}>
+                    <div className="progress-fill" style={{ width: `${pct}%`, background: color }} />
+                  </div>
+                  <p className="text-xs mt-2 tabular-nums" style={{ color: '#64748B' }}>
+                    {pct}%
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <ActivityHeatmap
+        completionEvents={completionEvents}
+        title="Submission heatmap"
+        variant="full"
+      />
 
       {userId && <NotesSearchPanel userId={userId} />}
 

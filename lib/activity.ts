@@ -200,6 +200,16 @@ export interface ActivityHeatmapData {
   bestStreak: number;
   currentStreak: number;
   monthLabels: { weekIndex: number; label: string }[];
+  year: number;
+  availableYears: number[];
+}
+
+export interface SolvedBreakdown {
+  Easy: { done: number; total: number };
+  Medium: { done: number; total: number };
+  Hard: { done: number; total: number };
+  totalDone: number;
+  totalQuestions: number;
 }
 
 function dateKeyLocal(d: Date): string {
@@ -217,10 +227,25 @@ function levelFromCount(count: number): number {
   return 4;
 }
 
-/** GitHub-style contribution heatmap for the last ~52 weeks. */
+export function getCompletionYears(events: CompletionEvent[], now = new Date()): number[] {
+  const years = new Set<number>();
+  years.add(now.getFullYear());
+  for (const e of dedupeCompletionEvents(events)) {
+    const y = Number(e.completed_at.slice(0, 4));
+    if (Number.isFinite(y)) years.add(y);
+  }
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
+ * LeetCode-style submission heatmap.
+ * - year = undefined → rolling last ~53 weeks
+ * - year = 2026 → that calendar year (Jan–Dec)
+ */
 export function buildActivityHeatmap(
   events: CompletionEvent[],
-  now = new Date()
+  now = new Date(),
+  year?: number
 ): ActivityHeatmapData {
   const counts = new Map<string, number>();
   for (const e of dedupeCompletionEvents(events)) {
@@ -228,38 +253,50 @@ export function buildActivityHeatmap(
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
-  const end = startOfDay(now);
-  // Align end to end of current week (Saturday) like GitHub (Sun-start weeks)
-  const endDow = end.getDay(); // 0 Sun … 6 Sat
-  const gridEnd = new Date(end);
-  gridEnd.setDate(gridEnd.getDate() + (6 - endDow));
+  const availableYears = getCompletionYears(events, now);
+  const today = startOfDay(now);
+  let rangeStart: Date;
+  let rangeEnd: Date;
 
-  const weeksCount = 53;
-  const totalDays = weeksCount * 7;
-  const gridStart = new Date(gridEnd);
-  gridStart.setDate(gridStart.getDate() - (totalDays - 1));
+  if (year != null) {
+    rangeStart = new Date(year, 0, 1);
+    rangeEnd = year === now.getFullYear() ? today : new Date(year, 11, 31);
+  } else {
+    rangeEnd = today;
+    rangeStart = new Date(today);
+    rangeStart.setDate(rangeStart.getDate() - (53 * 7 - 1));
+  }
+
+  // Align to Sun–Sat weeks
+  const gridStart = new Date(rangeStart);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  const gridEnd = new Date(rangeEnd);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
 
   const weeks: HeatmapDay[][] = [];
   const monthLabels: { weekIndex: number; label: string }[] = [];
   let lastMonth = -1;
+  const cursor = new Date(gridStart);
 
-  for (let w = 0; w < weeksCount; w++) {
+  while (cursor <= gridEnd) {
     const week: HeatmapDay[] = [];
+    const weekIndex = weeks.length;
     for (let dow = 0; dow < 7; dow++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + w * 7 + dow);
+      const d = new Date(cursor);
+      d.setDate(cursor.getDate() + dow);
       const key = dateKeyLocal(d);
-      const count = d > end ? 0 : counts.get(key) ?? 0;
+      const inRange = d >= rangeStart && d <= rangeEnd && d <= today;
+      const count = inRange ? counts.get(key) ?? 0 : 0;
       week.push({
         date: key,
-        count: d > end ? 0 : count,
-        level: d > end ? 0 : levelFromCount(count),
+        count,
+        level: inRange ? levelFromCount(count) : 0,
       });
       if (dow === 0) {
         const month = d.getMonth();
         if (month !== lastMonth) {
           monthLabels.push({
-            weekIndex: w,
+            weekIndex,
             label: d.toLocaleDateString('en-US', { month: 'short' }),
           });
           lastMonth = month;
@@ -267,22 +304,21 @@ export function buildActivityHeatmap(
       }
     }
     weeks.push(week);
+    cursor.setDate(cursor.getDate() + 7);
   }
 
   let total = 0;
   let activeDays = 0;
-  const allDays = weeks.flat().filter((d) => d.date <= dateKeyLocal(end));
-  for (const day of allDays) {
+  for (const day of weeks.flat()) {
+    if (day.date < dateKeyLocal(rangeStart) || day.date > dateKeyLocal(rangeEnd)) continue;
     total += day.count;
     if (day.count > 0) activeDays++;
   }
 
-  // Streaks (calendar days with ≥1 completion)
   let currentStreak = 0;
   let bestStreak = 0;
   let run = 0;
-  // current streak: consecutive days ending today (or yesterday if today empty)
-  let streakCursor = new Date(end);
+  let streakCursor = new Date(today);
   if ((counts.get(dateKeyLocal(streakCursor)) ?? 0) === 0) {
     streakCursor.setDate(streakCursor.getDate() - 1);
   }
@@ -291,7 +327,6 @@ export function buildActivityHeatmap(
     streakCursor.setDate(streakCursor.getDate() - 1);
   }
 
-  // best streak over full range
   const sortedKeys = [...counts.keys()].sort();
   let prev: string | null = null;
   for (const key of sortedKeys) {
@@ -308,5 +343,34 @@ export function buildActivityHeatmap(
     prev = key;
   }
 
-  return { weeks, total, activeDays, bestStreak, currentStreak, monthLabels };
+  return {
+    weeks,
+    total,
+    activeDays,
+    bestStreak,
+    currentStreak,
+    monthLabels,
+    year: year ?? now.getFullYear(),
+    availableYears,
+  };
+}
+
+export function computeSolvedBreakdown(
+  questions: { phase: 'Easy' | 'Medium' | 'Hard'; status: string }[]
+): SolvedBreakdown {
+  const Easy = { done: 0, total: 0 };
+  const Medium = { done: 0, total: 0 };
+  const Hard = { done: 0, total: 0 };
+  for (const q of questions) {
+    const bucket = q.phase === 'Easy' ? Easy : q.phase === 'Medium' ? Medium : Hard;
+    bucket.total++;
+    if (q.status === 'done') bucket.done++;
+  }
+  return {
+    Easy,
+    Medium,
+    Hard,
+    totalDone: Easy.done + Medium.done + Hard.done,
+    totalQuestions: Easy.total + Medium.total + Hard.total,
+  };
 }
