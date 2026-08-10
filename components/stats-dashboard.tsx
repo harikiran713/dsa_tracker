@@ -12,14 +12,21 @@ import {
 } from '@/lib/activity';
 import { BarChart3, CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
 import { ActivityHeatmap } from './activity-heatmap';
+import { NotesSearchPanel } from './notes-search-panel';
 
 interface StatsDashboardProps {
   completionEvents: CompletionEvent[];
   dailyTodos: DailyTodoItem[];
   reviseCount: number;
+  userId?: string;
 }
 
-export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: StatsDashboardProps) {
+export function StatsDashboard({
+  completionEvents,
+  dailyTodos,
+  reviseCount,
+  userId,
+}: StatsDashboardProps) {
   const [period, setPeriod] = useState<StatsPeriod>('7d');
 
   const stats = useMemo(
@@ -131,6 +138,8 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
       </div>
 
       <ActivityHeatmap completionEvents={completionEvents} />
+
+      {userId && <NotesSearchPanel userId={userId} />}
 
       <div className="glass-panel p-5 mb-6">
         <h3 className="font-semibold text-white mb-1">Problems Completed per Day</h3>

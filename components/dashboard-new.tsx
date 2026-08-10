@@ -12,6 +12,7 @@ import { isAdminUsername } from '@/lib/admin';
 import { LldPanel } from './lld-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
+import { ProblemOfTheDayCard } from './problem-of-the-day';
 import {
   getOrCreateUser,
   getUserProgressLocal,
@@ -404,6 +405,13 @@ export function DashboardNew() {
     void runReminder(true);
   }, [runReminder]);
 
+  const handleViewPotdInProblems = useCallback((question: Question) => {
+    setActiveTab('problems');
+    setFilterStatus('all');
+    setFilterDifficulty('all');
+    setSearchQuery(question.title);
+  }, []);
+
   const questionsWithProgress = useMemo(
     () =>
       questions.map((q) => {
@@ -710,11 +718,19 @@ export function DashboardNew() {
             completionEvents={completionEvents}
             dailyTodos={dailyTodos}
             reviseCount={stats.revise}
+            userId={currentUser.id}
           />
         )}
 
         {activeTab === 'problems' && (
           <>
+        <ProblemOfTheDayCard
+          questions={questionsWithProgress}
+          isLoading={isLoadingData}
+          onStatusChange={handleStatusChange}
+          onViewInProblems={handleViewPotdInProblems}
+        />
+
         {/* ── STAT CARDS ─────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {statCards.map(({ label, value, icon: Icon, iconBg, iconColor, valueColor }) => (

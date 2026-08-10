@@ -197,6 +197,42 @@ export async function fetchAllUsers(adminUsername: string): Promise<User[]> {
   return result ?? [];
 }
 
+export type NoteSearchSource = 'problems' | 'lastmin' | 'lld' | 'all';
+
+export interface NoteSearchHit {
+  source: 'problems' | 'lastmin' | 'lld';
+  user_id: string;
+  ref_id: string;
+  title: string;
+  status: string;
+  notes: string;
+  snippet: string;
+  updated_at: string;
+}
+
+export interface NoteSearchResponse {
+  q: string;
+  userId: string;
+  count: number;
+  results: NoteSearchHit[];
+}
+
+/** Server-side search across personal notes (problems / last-min / LLD). */
+export async function searchNotes(
+  userId: string,
+  q: string,
+  source: NoteSearchSource = 'all',
+  limit = 50
+): Promise<NoteSearchResponse | null> {
+  const params = new URLSearchParams({
+    userId,
+    q,
+    source,
+    limit: String(limit),
+  });
+  return apiJson<NoteSearchResponse>(`/api/notes/search?${params.toString()}`);
+}
+
 function adminQuery(pin: string, extra = ''): string {
   const base = `admin=${encodeURIComponent(ADMIN_USERNAME)}&pin=${encodeURIComponent(pin)}`;
   return extra ? `${base}&${extra}` : base;

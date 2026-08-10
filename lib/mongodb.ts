@@ -48,6 +48,9 @@ async function ensureIndexes(db: Db): Promise<void> {
       ),
       db.collection('admin_audit').createIndex({ created_at: -1 }),
       db.collection('hidden_leaderboard_users').createIndex({ user_id: 1 }, { unique: true }),
+      db.collection('user_progress').createIndex({ notes: 'text' }),
+      db.collection('last_min_prep_progress').createIndex({ notes: 'text' }),
+      db.collection('lld_progress').createIndex({ notes: 'text' }),
     ]);
     indexesEnsured = true;
   } catch (error) {
