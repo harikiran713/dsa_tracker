@@ -184,3 +184,129 @@ export function saveDailyTodos(userId: string, todos: DailyTodoItem[]): void {
 export function getTodosForDate(todos: DailyTodoItem[], date: string): DailyTodoItem[] {
   return todos.filter((t) => t.date === date).sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
+
+export interface HeatmapDay {
+  date: string;
+  count: number;
+  /** 0 empty … 4 hottest */
+  level: number;
+}
+
+export interface ActivityHeatmapData {
+  /** weeks × 7 days (Sun→Sat), oldest week first */
+  weeks: HeatmapDay[][];
+  total: number;
+  activeDays: number;
+  bestStreak: number;
+  currentStreak: number;
+  monthLabels: { weekIndex: number; label: string }[];
+}
+
+function dateKeyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function levelFromCount(count: number): number {
+  if (count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+/** GitHub-style contribution heatmap for the last ~52 weeks. */
+export function buildActivityHeatmap(
+  events: CompletionEvent[],
+  now = new Date()
+): ActivityHeatmapData {
+  const counts = new Map<string, number>();
+  for (const e of dedupeCompletionEvents(events)) {
+    const key = e.completed_at.slice(0, 10);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const end = startOfDay(now);
+  // Align end to end of current week (Saturday) like GitHub (Sun-start weeks)
+  const endDow = end.getDay(); // 0 Sun … 6 Sat
+  const gridEnd = new Date(end);
+  gridEnd.setDate(gridEnd.getDate() + (6 - endDow));
+
+  const weeksCount = 53;
+  const totalDays = weeksCount * 7;
+  const gridStart = new Date(gridEnd);
+  gridStart.setDate(gridStart.getDate() - (totalDays - 1));
+
+  const weeks: HeatmapDay[][] = [];
+  const monthLabels: { weekIndex: number; label: string }[] = [];
+  let lastMonth = -1;
+
+  for (let w = 0; w < weeksCount; w++) {
+    const week: HeatmapDay[] = [];
+    for (let dow = 0; dow < 7; dow++) {
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + w * 7 + dow);
+      const key = dateKeyLocal(d);
+      const count = d > end ? 0 : counts.get(key) ?? 0;
+      week.push({
+        date: key,
+        count: d > end ? 0 : count,
+        level: d > end ? 0 : levelFromCount(count),
+      });
+      if (dow === 0) {
+        const month = d.getMonth();
+        if (month !== lastMonth) {
+          monthLabels.push({
+            weekIndex: w,
+            label: d.toLocaleDateString('en-US', { month: 'short' }),
+          });
+          lastMonth = month;
+        }
+      }
+    }
+    weeks.push(week);
+  }
+
+  let total = 0;
+  let activeDays = 0;
+  const allDays = weeks.flat().filter((d) => d.date <= dateKeyLocal(end));
+  for (const day of allDays) {
+    total += day.count;
+    if (day.count > 0) activeDays++;
+  }
+
+  // Streaks (calendar days with ≥1 completion)
+  let currentStreak = 0;
+  let bestStreak = 0;
+  let run = 0;
+  // current streak: consecutive days ending today (or yesterday if today empty)
+  let streakCursor = new Date(end);
+  if ((counts.get(dateKeyLocal(streakCursor)) ?? 0) === 0) {
+    streakCursor.setDate(streakCursor.getDate() - 1);
+  }
+  while ((counts.get(dateKeyLocal(streakCursor)) ?? 0) > 0) {
+    currentStreak++;
+    streakCursor.setDate(streakCursor.getDate() - 1);
+  }
+
+  // best streak over full range
+  const sortedKeys = [...counts.keys()].sort();
+  let prev: string | null = null;
+  for (const key of sortedKeys) {
+    if ((counts.get(key) ?? 0) <= 0) continue;
+    if (prev) {
+      const prevD = new Date(prev + 'T12:00:00');
+      const curD = new Date(key + 'T12:00:00');
+      const diff = Math.round((curD.getTime() - prevD.getTime()) / 86400000);
+      run = diff === 1 ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    bestStreak = Math.max(bestStreak, run);
+    prev = key;
+  }
+
+  return { weeks, total, activeDays, bestStreak, currentStreak, monthLabels };
+}

@@ -11,6 +11,7 @@ import {
   dedupeCompletionEvents,
 } from '@/lib/activity';
 import { BarChart3, CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
+import { ActivityHeatmap } from './activity-heatmap';
 
 interface StatsDashboardProps {
   completionEvents: CompletionEvent[];
@@ -128,6 +129,8 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
           </div>
         ))}
       </div>
+
+      <ActivityHeatmap completionEvents={completionEvents} />
 
       <div className="glass-panel p-5 mb-6">
         <h3 className="font-semibold text-white mb-1">Problems Completed per Day</h3>
