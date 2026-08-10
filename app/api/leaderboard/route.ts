@@ -35,11 +35,17 @@ export async function GET(request: NextRequest) {
 
     const db = await getDb();
 
-    const userDocs = await db.collection('users').find({}).toArray();
-    const users = userDocs.map((u) => ({
-      id: u._id.toString(),
-      username: String(u.username),
-    }));
+    const [userDocs, hiddenDocs] = await Promise.all([
+      db.collection('users').find({}).toArray(),
+      db.collection('hidden_leaderboard_users').find({}).toArray(),
+    ]);
+    const hiddenIds = new Set(hiddenDocs.map((h) => String(h.user_id)));
+    const users = userDocs
+      .map((u) => ({
+        id: u._id.toString(),
+        username: String(u.username),
+      }))
+      .filter((u) => u.username !== 'adminharikiran' && !hiddenIds.has(u.id));
 
     if (users.length === 0) {
       return NextResponse.json([]);

@@ -22,6 +22,12 @@ import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
+import {
+  ADMIN_USERNAME,
+  type AdminOverview,
+  type AdminResetScope,
+  type AdminUserDetail,
+} from './admin';
 
 export type { User, UserProgress };
 
@@ -189,6 +195,74 @@ export async function fetchAllUsers(adminUsername: string): Promise<User[]> {
     `/api/users?list=1&admin=${encodeURIComponent(adminUsername)}`
   );
   return result ?? [];
+}
+
+function adminQuery(pin: string, extra = ''): string {
+  const base = `admin=${encodeURIComponent(ADMIN_USERNAME)}&pin=${encodeURIComponent(pin)}`;
+  return extra ? `${base}&${extra}` : base;
+}
+
+export async function fetchAdminOverview(pin: string): Promise<AdminOverview | null> {
+  return apiJson<AdminOverview>(`/api/admin?${adminQuery(pin, 'action=overview')}`);
+}
+
+export async function fetchAdminUserDetail(
+  pin: string,
+  userId: string
+): Promise<AdminUserDetail | null> {
+  return apiJson<AdminUserDetail>(
+    `/api/admin?${adminQuery(pin, `action=user&userId=${encodeURIComponent(userId)}`)}`
+  );
+}
+
+export async function adminResetUser(
+  pin: string,
+  userId: string,
+  username: string,
+  scope: AdminResetScope
+): Promise<boolean> {
+  const result = await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: 'reset',
+      userId,
+      username,
+      scope,
+    }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function adminSetLeaderboardHidden(
+  pin: string,
+  userId: string,
+  username: string,
+  hidden: boolean
+): Promise<boolean> {
+  const result = await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: hidden ? 'hide_leaderboard' : 'unhide_leaderboard',
+      userId,
+      username,
+    }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function adminLogExport(pin: string): Promise<void> {
+  await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: 'export_csv',
+    }),
+  });
 }
 
 export async function getOrCreateUser(username: string): Promise<User | null> {

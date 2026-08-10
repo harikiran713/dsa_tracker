@@ -363,6 +363,7 @@ export function DashboardNew() {
     setCurrentUser(null);
     localStorage.removeItem('interview_prep_username');
     localStorage.removeItem('interview_prep_user_id');
+    sessionStorage.removeItem('admin_pin_verified');
     setUserProgress(new Map());
     setCompletionEvents([]);
     setDailyTodos([]);
