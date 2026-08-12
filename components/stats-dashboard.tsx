@@ -10,7 +10,7 @@ import {
   isInPeriod,
   dedupeCompletionEvents,
 } from '@/lib/activity';
-import { BarChart3, CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
+import { CheckCircle2, ListTodo, Calendar, TrendingUp } from 'lucide-react';
 
 interface StatsDashboardProps {
   completionEvents: CompletionEvent[];
@@ -63,8 +63,8 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
           : '0',
       sub: 'Problems completed',
       icon: TrendingUp,
-      color: '#C4B5FD',
-      bg: 'rgba(139,92,246,0.15)',
+      color: '#22D3EE',
+      bg: 'rgba(6,182,212,0.15)',
     },
     {
       label: 'Flagged Revise',
@@ -80,19 +80,11 @@ export function StatsDashboard({ completionEvents, dailyTodos, reviseCount }: St
     <div className="stats-dashboard">
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.22)' }}
-            >
-              <BarChart3 className="w-4 h-4" style={{ color: '#60A5FA' }} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white">Activity Analytics</h2>
-              <p className="text-xs" style={{ color: '#64748B' }}>
-                Track how many problems and todos you finish over time
-              </p>
-            </div>
+          <div className="panel-section-header mb-0">
+            <p className="panel-section-title">Period</p>
+            <p className="panel-section-subtitle">
+              Problems and todos completed over time
+            </p>
           </div>
         </div>
 

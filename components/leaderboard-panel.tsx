@@ -56,19 +56,11 @@ export function LeaderboardPanel({ currentUserId }: LeaderboardPanelProps) {
     <div className="leaderboard-panel">
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)' }}
-            >
-              <Trophy className="w-4 h-4" style={{ color: '#FCD34D' }} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white">Leaderboard</h2>
-              <p className="text-xs" style={{ color: '#64748B' }}>
-                Ranked by score — Easy 2pts · Medium 4pts · Hard 6pts
-              </p>
-            </div>
+          <div className="panel-section-header mb-0">
+            <p className="panel-section-title">Rankings</p>
+            <p className="panel-section-subtitle">
+              Easy 2pts · Medium 4pts · Hard 6pts
+            </p>
           </div>
           <button
             type="button"

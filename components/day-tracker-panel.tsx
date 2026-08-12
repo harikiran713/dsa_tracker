@@ -51,22 +51,11 @@ export function DayTrackerPanel({
     <div className="day-tracker-panel">
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'rgba(34,197,94,0.15)',
-                border: '1px solid rgba(34,197,94,0.28)',
-              }}
-            >
-              <CalendarDays className="w-5 h-5" style={{ color: '#4ADE80' }} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white text-lg">100 Days Challenge</h2>
-              <p className="text-sm" style={{ color: '#64748B' }}>
-                Click a day when you finish that day’s work. Click again to undo.
-              </p>
-            </div>
+          <div className="panel-section-header mb-0">
+            <p className="panel-section-title">Day tracker</p>
+            <p className="panel-section-subtitle">
+              Click a day when you finish that day’s work. Click again to undo.
+            </p>
           </div>
           {nextDay !== null && (
             <button
@@ -121,7 +110,7 @@ export function DayTrackerPanel({
             </div>
           </div>
           <div className="day-tracker-stat">
-            <CalendarDays className="w-4 h-4" style={{ color: '#C4B5FD' }} strokeWidth={1.75} />
+            <CalendarDays className="w-4 h-4" style={{ color: '#22D3EE' }} strokeWidth={1.75} />
             <div>
               <p className="day-tracker-stat-label">Progress</p>
               <p className="day-tracker-stat-value">{progressPct}%</p>

@@ -20,7 +20,6 @@ import {
   Circle,
   ExternalLink,
   MessageSquare,
-  Rocket,
   X,
 } from 'lucide-react';
 
@@ -97,22 +96,11 @@ export function LastMinPrepPanel({
     <div className="last-min-prep">
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'rgba(244,63,94,0.15)',
-                border: '1px solid rgba(244,63,94,0.28)',
-              }}
-            >
-              <Rocket className="w-5 h-5" style={{ color: '#FB7185' }} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white text-lg">Last Min Prep</h2>
-              <p className="text-sm" style={{ color: '#64748B' }}>
-                {uniqueTotal} must-do problems across {LAST_MIN_PREP_CATEGORIES.length} patterns. Track Done / Revise / notes.
-              </p>
-            </div>
+          <div className="panel-section-header mb-0">
+            <p className="panel-section-title">Checklist</p>
+            <p className="panel-section-subtitle">
+              {uniqueTotal} must-do problems across {LAST_MIN_PREP_CATEGORIES.length} patterns
+            </p>
           </div>
         </div>
 

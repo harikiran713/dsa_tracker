@@ -16,7 +16,6 @@ import {
   Circle,
   Plus,
   Trash2,
-  ListTodo,
   ExternalLink,
   Hash,
 } from 'lucide-react';
@@ -161,19 +160,11 @@ export function DailyTodoPanel({
 
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.22)' }}
-            >
-              <ListTodo className="w-4 h-4" style={{ color: '#60A5FA' }} strokeWidth={1.75} />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white">Daily Todo List</h2>
-              <p className="text-xs" style={{ color: '#64748B' }}>
-                Add custom tasks or link a problem by its #number
-              </p>
-            </div>
+          <div className="panel-section-header mb-0">
+            <p className="panel-section-title">Schedule</p>
+            <p className="panel-section-subtitle">
+              Add custom tasks or link a problem by its #number
+            </p>
           </div>
 
           {!isToday && (

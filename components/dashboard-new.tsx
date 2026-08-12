@@ -59,11 +59,64 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes,
+  Menu, X, Circle,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
 type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'lld' | 'analytics' | 'leaderboard';
+
+const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
+  {
+    id: 'problems',
+    label: 'Problems',
+    icon: Code2,
+    title: 'Problems',
+    subtitle: 'Track DSA questions by status and difficulty.',
+  },
+  {
+    id: 'todos',
+    label: 'Daily Todo',
+    icon: ListTodo,
+    title: 'Daily Todo',
+    subtitle: 'Plan tasks and link problems by number.',
+  },
+  {
+    id: 'day100',
+    label: '100 Days',
+    icon: CalendarDays,
+    title: '100 Days Challenge',
+    subtitle: 'Mark each day complete as you finish the work.',
+  },
+  {
+    id: 'lastmin',
+    label: 'Last min prep',
+    icon: Rocket,
+    title: 'Last Min Prep',
+    subtitle: 'Must-do patterns with Done / Revise / notes.',
+  },
+  {
+    id: 'lld',
+    label: 'LLD',
+    icon: Boxes,
+    title: 'Low-Level Design',
+    subtitle: 'Interview LLD topics with status and notes.',
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    title: 'Analytics',
+    subtitle: 'Completions and todo activity over time.',
+  },
+  {
+    id: 'leaderboard',
+    label: 'Leaderboard',
+    icon: Trophy,
+    title: 'Leaderboard',
+    subtitle: 'Ranked by score — Easy 2 · Medium 4 · Hard 6.',
+  },
+];
 
 export function DashboardNew() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -84,6 +137,7 @@ export function DashboardNew() {
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderToast, setReminderToast] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const debouncedSearch = useDebouncedValue(searchQuery, 180);
   useScrollPerformance();
@@ -95,6 +149,10 @@ export function DashboardNew() {
     if (savedUsername) handleLogin(savedUsername);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [activeTab]);
 
   const applyProgressToState = (progress: UserProgress[]) => {
     const progressMap = new Map<number, UserProgress>();
@@ -347,6 +405,7 @@ export function DashboardNew() {
     setSearchQuery('');
     setFilterStatus('all');
     setFilterDifficulty('all');
+    setMobileNavOpen(false);
   };
 
   const showReminderToast = useCallback((message: string) => {
@@ -428,98 +487,107 @@ export function DashboardNew() {
     return <LoginScreen onLogin={handleLogin} isLoading={isLoadingAuth} />;
   }
 
+  const activeMeta = NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0];
+
   const statCards = [
     {
       label: 'Total',
       value: stats.total,
       icon: ListTodo,
-      iconBg: 'rgba(59,130,246,0.18)',
-      iconColor: '#60A5FA',
-      valueColor: '#FFFFFF',
+      tone: 'stat-tone--blue',
     },
     {
       label: 'Completed',
       value: stats.completed,
       icon: CheckCircle2,
-      iconBg: 'rgba(34,197,94,0.18)',
-      iconColor: '#4ADE80',
-      valueColor: '#4ADE80',
+      tone: 'stat-tone--green',
     },
     {
       label: 'Revise',
       value: stats.revise,
       icon: AlertCircle,
-      iconBg: 'rgba(245,158,11,0.18)',
-      iconColor: '#FCD34D',
-      valueColor: '#FCD34D',
+      tone: 'stat-tone--amber',
     },
     {
       label: 'To Do',
       value: stats.toDo,
-      icon: ListTodo,
-      iconBg: 'rgba(148,163,184,0.14)',
-      iconColor: '#94A3B8',
-      valueColor: '#CBD5E1',
+      icon: Circle,
+      tone: 'stat-tone--muted',
     },
     {
       label: 'Progress',
       value: `${stats.progress}%`,
       icon: TrendingUp,
-      iconBg: 'rgba(139,92,246,0.18)',
-      iconColor: '#C4B5FD',
-      valueColor: '#C4B5FD',
+      tone: 'stat-tone--cyan',
     },
   ];
 
+  const navButtons = (
+    <>
+      {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setActiveTab(id)}
+          className={`app-nav-item ${activeTab === id ? 'app-nav-item--active' : ''}`}
+        >
+          <Icon className="w-4 h-4" strokeWidth={1.75} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </>
+  );
+
   return (
-    <main className="app-shell relative min-h-screen overflow-x-hidden">
-      {/* Background blobs */}
-      <div className="bg-blobs">
-        <div className="blob blob-blue"   style={{ width: 700, height: 700, top: '-15%',  left: '-20%' }} />
-        <div className="blob blob-purple" style={{ width: 550, height: 550, bottom: '-8%', right: '-12%' }} />
-        <div className="blob blob-cyan"   style={{ width: 350, height: 350, top: '42%',   left: '58%'  }} />
+    <main className="app-shell workspace-shell relative min-h-screen overflow-x-hidden">
+      <div className="bg-blobs workspace-blobs">
+        <div className="blob blob-blue" style={{ width: 560, height: 560, top: '-18%', left: '-14%' }} />
+        <div className="blob blob-cyan" style={{ width: 320, height: 320, bottom: '-10%', right: '-8%' }} />
       </div>
 
-      {/* ── STICKY HEADER ──────────────────────────────────────────── */}
-      <header className="glass-header sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
-          {/* Logo */}
+      <header className="workspace-topbar glass-header sticky top-0 z-50">
+        <div className="workspace-topbar-inner">
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#3B82F6,#2563EB)', boxShadow: '0 6px 20px rgba(59,130,246,0.40)' }}
+            <button
+              type="button"
+              className="workspace-menu-btn lg:hidden"
+              onClick={() => setMobileNavOpen((open) => !open)}
+              aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
             >
-              <Code2 className="w-4 h-4 text-white" strokeWidth={1.75} />
+              {mobileNavOpen ? <X className="w-4 h-4" strokeWidth={2} /> : <Menu className="w-4 h-4" strokeWidth={2} />}
+            </button>
+            <div className="workspace-brand">
+              <div className="workspace-brand-mark">
+                <Code2 className="w-4 h-4 text-white" strokeWidth={1.75} />
+              </div>
+              <div className="hidden sm:block">
+                <p className="workspace-brand-name">PrepTracker</p>
+                <p className="workspace-brand-sub">Workspace</p>
+              </div>
             </div>
-            <span className="text-sm font-semibold text-white/80 tracking-tight hidden sm:block">PrepTracker</span>
           </div>
 
-          {/* Search */}
-          <div className="flex-1 max-w-md relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#64748B' }} strokeWidth={1.75} />
-            <input
-              type="text"
-              placeholder="Search questions…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="glass-input pl-10 py-2.5 text-sm"
-              style={{ borderRadius: '12px', padding: '9px 16px 9px 38px' }}
-            />
-          </div>
+          {activeTab === 'problems' ? (
+            <div className="workspace-search">
+              <Search className="workspace-search-icon" strokeWidth={1.75} />
+              <input
+                type="text"
+                placeholder="Search questions…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="glass-input workspace-search-input"
+              />
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
 
-          {/* User + Logout */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-            >
-              <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                style={{ background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)' }}
-              >
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="workspace-user-chip">
+              <div className="workspace-user-avatar">
                 {currentUser.username[0].toUpperCase()}
               </div>
-              <span className="text-sm font-medium" style={{ color: '#CBD5E1' }}>{currentUser.username}</span>
+              <span className="hidden md:inline">{currentUser.username}</span>
             </div>
             <button onClick={handleLogout} className="btn btn-sm btn-danger flex items-center gap-1.5">
               <LogOut className="w-3.5 h-3.5" strokeWidth={2} />
@@ -529,276 +597,200 @@ export function DashboardNew() {
         </div>
       </header>
 
-      {/* ── MAIN CONTENT ───────────────────────────────────────────── */}
-      <div className="z-content relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="workspace-nav-backdrop lg:hidden"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
 
-        {/* Page heading */}
-        <div className="mb-10 animate-fade-up">
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5"
-            style={{ background: 'rgba(59,130,246,0.10)', border: '1px solid rgba(59,130,246,0.22)' }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-xs font-semibold text-blue-400 tracking-wide uppercase">SDE Interview Prep</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-gradient-hero leading-tight mb-3">
-            Your Coding<br className="sm:hidden" /> Progress
-          </h1>
-          <p className="text-base" style={{ color: '#94A3B8' }}>
-            Track problems, plan daily todos, and review your activity over time.
-          </p>
-        </div>
+      <div className="workspace-layout z-content">
+        <aside className={`workspace-sidebar ${mobileNavOpen ? 'workspace-sidebar--open' : ''}`}>
+          <p className="workspace-sidebar-label">Navigate</p>
+          <nav className="app-nav app-nav--sidebar" aria-label="Main">
+            {navButtons}
+          </nav>
+        </aside>
 
-        {/* ── MAIN TABS ──────────────────────────────────────────── */}
-        <div className="main-tabs mb-8">
-          <button
-            type="button"
-            onClick={() => setActiveTab('problems')}
-            className={`main-tab ${activeTab === 'problems' ? 'main-tab--active' : ''}`}
-          >
-            <Code2 className="w-4 h-4" strokeWidth={1.75} />
-            Problems
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('todos')}
-            className={`main-tab ${activeTab === 'todos' ? 'main-tab--active' : ''}`}
-          >
-            <ListTodo className="w-4 h-4" strokeWidth={1.75} />
-            Daily Todo
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('day100')}
-            className={`main-tab ${activeTab === 'day100' ? 'main-tab--active' : ''}`}
-          >
-            <CalendarDays className="w-4 h-4" strokeWidth={1.75} />
-            100 Days
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('lastmin')}
-            className={`main-tab ${activeTab === 'lastmin' ? 'main-tab--active' : ''}`}
-          >
-            <Rocket className="w-4 h-4" strokeWidth={1.75} />
-            Last min prep
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('lld')}
-            className={`main-tab ${activeTab === 'lld' ? 'main-tab--active' : ''}`}
-          >
-            <Boxes className="w-4 h-4" strokeWidth={1.75} />
-            LLD
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('analytics')}
-            className={`main-tab ${activeTab === 'analytics' ? 'main-tab--active' : ''}`}
-          >
-            <BarChart3 className="w-4 h-4" strokeWidth={1.75} />
-            Analytics
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('leaderboard')}
-            className={`main-tab ${activeTab === 'leaderboard' ? 'main-tab--active' : ''}`}
-          >
-            <Trophy className="w-4 h-4" strokeWidth={1.75} />
-            Leaderboard
-          </button>
-        </div>
+        <div className="workspace-main">
+          <nav className="app-nav app-nav--mobile lg:hidden" aria-label="Main mobile">
+            {navButtons}
+          </nav>
 
-        {activeTab === 'leaderboard' && currentUser && (
-          <LeaderboardPanel currentUserId={currentUser.id} />
-        )}
+          <header className="workspace-page-header">
+            <h1 className="workspace-page-title">{activeMeta.title}</h1>
+            <p className="workspace-page-subtitle">{activeMeta.subtitle}</p>
+          </header>
 
-        {activeTab === 'todos' && currentUser && (
-          <DailyTodoPanel
-            todos={dailyTodos}
-            onTodosChange={handleTodosChange}
-            userId={currentUser.id}
-            questions={questions}
-            reminderEnabled={reminderEnabled}
-            onReminderEnabledChange={setReminderEnabled}
-            onTestReminder={handleTestReminder}
-          />
-        )}
+          {activeTab === 'leaderboard' && currentUser && (
+            <LeaderboardPanel currentUserId={currentUser.id} />
+          )}
 
-        {activeTab === 'day100' && currentUser && (
-          <DayTrackerPanel
-            data={dayTracker ?? emptyDayTracker(currentUser.id)}
-            onChange={handleDayTrackerChange}
-            syncStatus={dayTrackerSync}
-          />
-        )}
-
-        {activeTab === 'lastmin' && currentUser && (
-          <LastMinPrepPanel
-            userId={currentUser.id}
-            progress={lastMinPrep}
-            onProgressChange={handleLastMinPrepChange}
-          />
-        )}
-
-        {activeTab === 'lld' && currentUser && (
-          <LldPanel
-            userId={currentUser.id}
-            progress={lldProgress}
-            onProgressChange={handleLldChange}
-          />
-        )}
-
-        {activeTab === 'analytics' && (
-          <StatsDashboard
-            completionEvents={completionEvents}
-            dailyTodos={dailyTodos}
-            reviseCount={stats.revise}
-          />
-        )}
-
-        {activeTab === 'problems' && (
-          <>
-        {/* ── STAT CARDS ─────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          {statCards.map(({ label, value, icon: Icon, iconBg, iconColor, valueColor }) => (
-            <div key={label} className="stat-card">
-              <div className="stat-card-icon" style={{ background: iconBg }}>
-                <Icon className="w-5 h-5" style={{ color: iconColor }} strokeWidth={1.75} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#64748B' }}>{label}</p>
-                <p className="text-3xl font-bold tabular-nums leading-none" style={{ color: valueColor }}>{value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── PROGRESS BAR ───────────────────────────────────────── */}
-        <div className="glass-panel p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.22)' }}
-              >
-                <BarChart3 className="w-4 h-4" style={{ color: '#60A5FA' }} strokeWidth={1.75} />
-              </div>
-              <span className="font-semibold" style={{ color: '#FFFFFF' }}>Overall Progress</span>
-            </div>
-            <span className="text-sm tabular-nums" style={{ color: '#64748B' }}>
-              {stats.completed} / {stats.total} completed
-            </span>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${stats.progress}%` }} />
-          </div>
-          <div className="flex justify-between mt-2 text-xs" style={{ color: '#475569' }}>
-            <span>0%</span>
-            <span className="font-semibold" style={{ color: '#60A5FA' }}>{stats.progress}%</span>
-            <span>100%</span>
-          </div>
-        </div>
-
-        {/* ── FILTERS ────────────────────────────────────────────── */}
-        <div className="glass-panel p-5 mb-8">
-          <div className="flex flex-col gap-4">
-
-            {/* Row 1 — Status + count */}
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2 text-sm" style={{ color: '#94A3B8' }}>
-                <Search className="w-4 h-4" strokeWidth={1.75} />
-                <span>
-                  Showing <strong style={{ color: '#FFFFFF' }}>{mixedFiltered.length}</strong> questions
-                  {filterDifficulty === 'all' && (
-                    <span style={{ color: '#64748B' }}> · mixed within each level</span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {(['all', 'done', 'revise'] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setFilterStatus(s)}
-                    className={`filter-pill capitalize ${filterStatus === s ? `active-${s}` : ''}`}
-                  >
-                    {s === 'all' ? 'All Status' : s === 'done' ? '✓ Done' : '↺ Revise'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="divider" />
-
-            {/* Row 2 — Difficulty */}
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#475569' }}>
-                Difficulty
-              </span>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setFilterDifficulty('all')}
-                  className={`filter-pill ${filterDifficulty === 'all' ? 'active-all' : ''}`}
-                >
-                  All Levels
-                </button>
-                <button
-                  onClick={() => setFilterDifficulty('Easy')}
-                  className={`filter-pill ${filterDifficulty === 'Easy' ? 'active-difficulty-easy' : ''}`}
-                >
-                  🟢 Easy
-                </button>
-                <button
-                  onClick={() => setFilterDifficulty('Medium')}
-                  className={`filter-pill ${filterDifficulty === 'Medium' ? 'active-difficulty-medium' : ''}`}
-                >
-                  🟡 Medium
-                </button>
-                <button
-                  onClick={() => setFilterDifficulty('Hard')}
-                  className={`filter-pill ${filterDifficulty === 'Hard' ? 'active-difficulty-hard' : ''}`}
-                >
-                  🔴 Hard
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* ── QUESTION SECTIONS ──────────────────────────────────── */}
-        {isLoadingData ? (
-          <div className="glass-card flex flex-col items-center justify-center py-20 gap-4 animate-fade-in">
-            <div className="spinner" />
-            <p style={{ color: '#94A3B8' }}>Loading your progress…</p>
-          </div>
-        ) : mixedFiltered.length === 0 ? (
-          <div className="glass-card flex flex-col items-center justify-center py-20 gap-4 animate-fade-in">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-            >
-              <Search className="w-7 h-7" style={{ color: '#64748B' }} strokeWidth={1.5} />
-            </div>
-            <div className="text-center">
-              <p className="font-semibold mb-1" style={{ color: '#FFFFFF' }}>No questions found</p>
-              <p className="text-sm" style={{ color: '#64748B' }}>Try a different search term or filter.</p>
-            </div>
-          </div>
-        ) : (
-          <section>
-            <VirtualQuestionGrid
-              questions={mixedFiltered}
-              onStatusChange={handleStatusChange}
-              onNotesChange={handleNotesChange}
+          {activeTab === 'todos' && currentUser && (
+            <DailyTodoPanel
+              todos={dailyTodos}
+              onTodosChange={handleTodosChange}
+              userId={currentUser.id}
+              questions={questions}
+              reminderEnabled={reminderEnabled}
+              onReminderEnabledChange={setReminderEnabled}
+              onTestReminder={handleTestReminder}
             />
-          </section>
-        )}
-          </>
-        )}
+          )}
 
-        <div className="h-16" />
+          {activeTab === 'day100' && currentUser && (
+            <DayTrackerPanel
+              data={dayTracker ?? emptyDayTracker(currentUser.id)}
+              onChange={handleDayTrackerChange}
+              syncStatus={dayTrackerSync}
+            />
+          )}
+
+          {activeTab === 'lastmin' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={lastMinPrep}
+              onProgressChange={handleLastMinPrepChange}
+            />
+          )}
+
+          {activeTab === 'lld' && currentUser && (
+            <LldPanel
+              userId={currentUser.id}
+              progress={lldProgress}
+              onProgressChange={handleLldChange}
+            />
+          )}
+
+          {activeTab === 'analytics' && (
+            <StatsDashboard
+              completionEvents={completionEvents}
+              dailyTodos={dailyTodos}
+              reviseCount={stats.revise}
+            />
+          )}
+
+          {activeTab === 'problems' && (
+            <>
+              <div className="problems-toolbar glass-panel mb-6">
+                <div className="problems-stats">
+                  {statCards.map(({ label, value, icon: Icon, tone }) => (
+                    <div key={label} className={`problems-stat ${tone}`}>
+                      <div className="problems-stat-icon">
+                        <Icon className="w-4 h-4" strokeWidth={1.75} />
+                      </div>
+                      <div>
+                        <p className="problems-stat-label">{label}</p>
+                        <p className="problems-stat-value">{value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="problems-progress">
+                  <div className="problems-progress-meta">
+                    <span>Overall progress</span>
+                    <span className="tabular-nums">
+                      {stats.completed} / {stats.total} · {stats.progress}%
+                    </span>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${stats.progress}%` }} />
+                  </div>
+                </div>
+
+                <div className="problems-filters">
+                  <div className="problems-filter-group">
+                    <span className="problems-filter-label">Status</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(['all', 'done', 'revise'] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setFilterStatus(s)}
+                          className={`filter-pill capitalize ${filterStatus === s ? `active-${s}` : ''}`}
+                        >
+                          {s === 'all' ? 'All' : s === 'done' ? 'Done' : 'Revise'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="problems-filter-group">
+                    <span className="problems-filter-label">Difficulty</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setFilterDifficulty('all')}
+                        className={`filter-pill ${filterDifficulty === 'all' ? 'active-all' : ''}`}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterDifficulty('Easy')}
+                        className={`filter-pill filter-pill--easy ${filterDifficulty === 'Easy' ? 'active-difficulty-easy' : ''}`}
+                      >
+                        <span className="diff-dot diff-dot--easy" />
+                        Easy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterDifficulty('Medium')}
+                        className={`filter-pill filter-pill--medium ${filterDifficulty === 'Medium' ? 'active-difficulty-medium' : ''}`}
+                      >
+                        <span className="diff-dot diff-dot--medium" />
+                        Medium
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterDifficulty('Hard')}
+                        className={`filter-pill filter-pill--hard ${filterDifficulty === 'Hard' ? 'active-difficulty-hard' : ''}`}
+                      >
+                        <span className="diff-dot diff-dot--hard" />
+                        Hard
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="problems-count">
+                    Showing <strong>{mixedFiltered.length}</strong> questions
+                    {filterDifficulty === 'all' && <span> · mixed within each level</span>}
+                  </p>
+                </div>
+              </div>
+
+              {isLoadingData ? (
+                <div className="glass-card flex flex-col items-center justify-center py-20 gap-4 animate-fade-in">
+                  <div className="spinner" />
+                  <p className="text-muted-ui">Loading your progress…</p>
+                </div>
+              ) : mixedFiltered.length === 0 ? (
+                <div className="glass-card flex flex-col items-center justify-center py-20 gap-4 animate-fade-in">
+                  <div className="empty-icon">
+                    <Search className="w-7 h-7" strokeWidth={1.5} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold mb-1 text-white">No questions found</p>
+                    <p className="text-sm text-muted-ui">Try a different search term or filter.</p>
+                  </div>
+                </div>
+              ) : (
+                <section>
+                  <VirtualQuestionGrid
+                    questions={mixedFiltered}
+                    onStatusChange={handleStatusChange}
+                    onNotesChange={handleNotesChange}
+                  />
+                </section>
+              )}
+            </>
+          )}
+
+          <div className="h-12" />
+        </div>
       </div>
 
       <DailyTodoReminderToast

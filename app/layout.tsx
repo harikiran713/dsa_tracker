@@ -1,12 +1,20 @@
 import { Analytics } from '@vercel/analytics/next'
-import { Inter } from 'next/font/google'
+import { DM_Sans, Space_Grotesk } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   display: 'swap',
+  variable: '--font-sans',
+})
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  variable: '--font-display',
 })
 
 export const metadata: Metadata = {
@@ -46,8 +54,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} antialiased`}>
+    <html lang="en" className={`${dmSans.variable} ${spaceGrotesk.variable}`}>
+      <body className={`${dmSans.className} antialiased`}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
