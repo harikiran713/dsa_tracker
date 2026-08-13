@@ -184,3 +184,193 @@ export function saveDailyTodos(userId: string, todos: DailyTodoItem[]): void {
 export function getTodosForDate(todos: DailyTodoItem[], date: string): DailyTodoItem[] {
   return todos.filter((t) => t.date === date).sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
+
+export interface HeatmapDay {
+  date: string;
+  count: number;
+  /** 0 empty … 4 hottest */
+  level: number;
+}
+
+export interface ActivityHeatmapData {
+  /** weeks × 7 days (Sun→Sat), oldest week first */
+  weeks: HeatmapDay[][];
+  total: number;
+  activeDays: number;
+  bestStreak: number;
+  currentStreak: number;
+  monthLabels: { weekIndex: number; label: string }[];
+  year: number;
+  availableYears: number[];
+}
+
+export interface SolvedBreakdown {
+  Easy: { done: number; total: number };
+  Medium: { done: number; total: number };
+  Hard: { done: number; total: number };
+  totalDone: number;
+  totalQuestions: number;
+}
+
+function dateKeyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function levelFromCount(count: number): number {
+  if (count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+export function getCompletionYears(events: CompletionEvent[], now = new Date()): number[] {
+  const years = new Set<number>();
+  years.add(now.getFullYear());
+  for (const e of dedupeCompletionEvents(events)) {
+    const y = Number(e.completed_at.slice(0, 4));
+    if (Number.isFinite(y)) years.add(y);
+  }
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
+ * LeetCode-style submission heatmap.
+ * - year = undefined → rolling last ~53 weeks
+ * - year = 2026 → that calendar year (Jan–Dec)
+ */
+export function buildActivityHeatmap(
+  events: CompletionEvent[],
+  now = new Date(),
+  year?: number
+): ActivityHeatmapData {
+  const counts = new Map<string, number>();
+  for (const e of dedupeCompletionEvents(events)) {
+    const key = e.completed_at.slice(0, 10);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const availableYears = getCompletionYears(events, now);
+  const today = startOfDay(now);
+  let rangeStart: Date;
+  let rangeEnd: Date;
+
+  if (year != null) {
+    rangeStart = new Date(year, 0, 1);
+    rangeEnd = year === now.getFullYear() ? today : new Date(year, 11, 31);
+  } else {
+    rangeEnd = today;
+    rangeStart = new Date(today);
+    rangeStart.setDate(rangeStart.getDate() - (53 * 7 - 1));
+  }
+
+  // Align to Sun–Sat weeks
+  const gridStart = new Date(rangeStart);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  const gridEnd = new Date(rangeEnd);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+
+  const weeks: HeatmapDay[][] = [];
+  const monthLabels: { weekIndex: number; label: string }[] = [];
+  let lastMonth = -1;
+  const cursor = new Date(gridStart);
+
+  while (cursor <= gridEnd) {
+    const week: HeatmapDay[] = [];
+    const weekIndex = weeks.length;
+    for (let dow = 0; dow < 7; dow++) {
+      const d = new Date(cursor);
+      d.setDate(cursor.getDate() + dow);
+      const key = dateKeyLocal(d);
+      const inRange = d >= rangeStart && d <= rangeEnd && d <= today;
+      const count = inRange ? counts.get(key) ?? 0 : 0;
+      week.push({
+        date: key,
+        count,
+        level: inRange ? levelFromCount(count) : 0,
+      });
+      if (dow === 0) {
+        const month = d.getMonth();
+        if (month !== lastMonth) {
+          monthLabels.push({
+            weekIndex,
+            label: d.toLocaleDateString('en-US', { month: 'short' }),
+          });
+          lastMonth = month;
+        }
+      }
+    }
+    weeks.push(week);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  let total = 0;
+  let activeDays = 0;
+  for (const day of weeks.flat()) {
+    if (day.date < dateKeyLocal(rangeStart) || day.date > dateKeyLocal(rangeEnd)) continue;
+    total += day.count;
+    if (day.count > 0) activeDays++;
+  }
+
+  let currentStreak = 0;
+  let bestStreak = 0;
+  let run = 0;
+  let streakCursor = new Date(today);
+  if ((counts.get(dateKeyLocal(streakCursor)) ?? 0) === 0) {
+    streakCursor.setDate(streakCursor.getDate() - 1);
+  }
+  while ((counts.get(dateKeyLocal(streakCursor)) ?? 0) > 0) {
+    currentStreak++;
+    streakCursor.setDate(streakCursor.getDate() - 1);
+  }
+
+  const sortedKeys = [...counts.keys()].sort();
+  let prev: string | null = null;
+  for (const key of sortedKeys) {
+    if ((counts.get(key) ?? 0) <= 0) continue;
+    if (prev) {
+      const prevD = new Date(prev + 'T12:00:00');
+      const curD = new Date(key + 'T12:00:00');
+      const diff = Math.round((curD.getTime() - prevD.getTime()) / 86400000);
+      run = diff === 1 ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    bestStreak = Math.max(bestStreak, run);
+    prev = key;
+  }
+
+  return {
+    weeks,
+    total,
+    activeDays,
+    bestStreak,
+    currentStreak,
+    monthLabels,
+    year: year ?? now.getFullYear(),
+    availableYears,
+  };
+}
+
+export function computeSolvedBreakdown(
+  questions: { phase: 'Easy' | 'Medium' | 'Hard'; status: string }[]
+): SolvedBreakdown {
+  const Easy = { done: 0, total: 0 };
+  const Medium = { done: 0, total: 0 };
+  const Hard = { done: 0, total: 0 };
+  for (const q of questions) {
+    const bucket = q.phase === 'Easy' ? Easy : q.phase === 'Medium' ? Medium : Hard;
+    bucket.total++;
+    if (q.status === 'done') bucket.done++;
+  }
+  return {
+    Easy,
+    Medium,
+    Hard,
+    totalDone: Easy.done + Medium.done + Hard.done,
+    totalQuestions: Easy.total + Medium.total + Hard.total,
+  };
+}

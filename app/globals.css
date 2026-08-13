@@ -2096,6 +2096,16 @@ html.is-scrolling .progress-fill {
   gap: 8px;
 }
 
+.last-min-subtopic {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #FB7185;
+}
+
 .last-min-item {
   padding: 12px 14px;
   border-radius: 12px;
@@ -2339,6 +2349,105 @@ html.is-scrolling .progress-fill {
 .lld-notes-editor {
   margin-top: 10px;
   padding-left: 32px;
+}
+
+/* ── Activity heatmap (GitHub-style) ─────────────────────────── */
+.heatmap-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmap-wrap {
+  min-width: max-content;
+}
+
+.heatmap-months {
+  display: grid;
+  grid-template-columns: 28px repeat(53, 11px);
+  column-gap: 3px;
+  margin-bottom: 6px;
+  margin-left: 0;
+  height: 16px;
+}
+
+.heatmap-month {
+  font-size: 0.65rem;
+  color: #64748B;
+  white-space: nowrap;
+}
+
+.heatmap-body {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.heatmap-dow {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  row-gap: 3px;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.heatmap-dow-label {
+  font-size: 0.65rem;
+  line-height: 11px;
+  color: #64748B;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  grid-auto-flow: column;
+  gap: 3px;
+}
+
+.heatmap-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 0;
+  cursor: pointer;
+}
+
+.heatmap-cell:hover {
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 1px;
+}
+
+.heatmap-cell--legend {
+  cursor: default;
+  pointer-events: none;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 0.7rem;
+}
+
+.heatmap-tooltip {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 8px));
+  z-index: 100;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #0F172A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.heatmap-tooltip strong {
+  color: #fff;
 }
 
 

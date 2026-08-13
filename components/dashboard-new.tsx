@@ -7,9 +7,13 @@ import { VirtualQuestionGrid } from './virtual-question-grid';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { DayTrackerPanel, DayTrackerSyncStatus } from './day-tracker-panel';
 import { LastMinPrepPanel } from './last-min-prep-panel';
+import { AdminUsersPanel } from './admin-users-panel';
+import { isAdminUsername } from '@/lib/admin';
 import { LldPanel } from './lld-panel';
 import { StatsDashboard } from './stats-dashboard';
 import { LeaderboardPanel } from './leaderboard-panel';
+import { ProblemOfTheDayCard } from './problem-of-the-day';
+import { ProfilePanel } from './profile-panel';
 import {
   getOrCreateUser,
   getUserProgressLocal,
@@ -26,6 +30,7 @@ import {
   DayTrackerData,
   loadLastMinPrepFromDb,
   syncLastMinPrepToDb,
+  purgeLeakedLastMinPrepForUser,
   loadLldFromDb,
   syncLldToDb,
 } from '@/lib/db-service';
@@ -42,6 +47,7 @@ import {
 } from '@/lib/activity';
 import { saveDayTracker } from '@/lib/day-tracker';
 import {
+  CP_LEARNING_CATEGORIES,
   LastMinPrepProgress,
   loadLastMinPrepProgress,
   saveLastMinPrepProgress,
@@ -58,13 +64,13 @@ import { DailyTodoReminderToast } from './daily-todo-reminder-toast';
 import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
-  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes,
+  AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
   Menu, X, Circle,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'lld' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
   {
@@ -96,11 +102,25 @@ const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string
     subtitle: 'Must-do patterns with Done / Revise / notes.',
   },
   {
+    id: 'cplearning',
+    label: 'CP Learning',
+    icon: Cpu,
+    title: 'CP Learning',
+    subtitle: 'Advanced CP topics — Math through Binary Lifting.',
+  },
+  {
     id: 'lld',
     label: 'LLD',
     icon: Boxes,
     title: 'Low-Level Design',
     subtitle: 'Interview LLD topics with status and notes.',
+  },
+  {
+    id: 'profile',
+    label: 'Profile',
+    icon: UserRound,
+    title: 'Profile',
+    subtitle: 'Your account summary and stats.',
   },
   {
     id: 'analytics',
@@ -250,11 +270,26 @@ export function DashboardNew() {
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('interview_prep_username', username);
+
+        if (isAdminUsername(username)) {
+          setLoadedTabs(new Set());
+          return;
+        }
+
+        setUserProgress(new Map());
+        setCompletionEvents([]);
+        setDailyTodos([]);
+        setDayTracker(null);
+        setLastMinPrep([]);
+        setLldProgress([]);
         setLoadedTabs(new Set(['problems', 'day100']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
         setDailyTodos(loadDailyTodos(user.id));
         setDayTracker(loadDayTracker(user.id));
-        setLastMinPrep(loadLastMinPrepProgress(user.id));
+        // Never hydrate Last Min Prep from localStorage on login — another
+        // account's leaked rows used to show up here. DB load fills it later.
+        setLastMinPrep([]);
+        await purgeLeakedLastMinPrepForUser(username, user.id);
         setLldProgress(loadLldProgress(user.id));
         await loadProblemsData(user.id);
         void loadTodosData(user.id);
@@ -285,13 +320,26 @@ export function DashboardNew() {
       void loadLastMinPrepData(currentUser.id);
     }
 
+    if (activeTab === 'cplearning' && !loadedTabs.has('cplearning')) {
+      const needsPrepLoad = !loadedTabs.has('lastmin');
+      setLoadedTabs((prev) => {
+        const next = new Set(prev).add('cplearning');
+        if (needsPrepLoad) next.add('lastmin');
+        return next;
+      });
+      if (needsPrepLoad) void loadLastMinPrepData(currentUser.id);
+    }
+
     if (activeTab === 'lld' && !loadedTabs.has('lld')) {
       setLoadedTabs((prev) => new Set(prev).add('lld'));
       void loadLldData(currentUser.id);
     }
 
-    if (activeTab === 'analytics' && !loadedTabs.has('analytics')) {
-      setLoadedTabs((prev) => new Set(prev).add('analytics'));
+    if (
+      (activeTab === 'analytics' || activeTab === 'profile') &&
+      !loadedTabs.has('analytics')
+    ) {
+      setLoadedTabs((prev) => new Set(prev).add('analytics').add('profile'));
       void loadAnalyticsData(currentUser.id);
     }
   }, [activeTab, currentUser, loadedTabs]);
@@ -391,6 +439,8 @@ export function DashboardNew() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('interview_prep_username');
+    localStorage.removeItem('interview_prep_user_id');
+    sessionStorage.removeItem('admin_pin_verified');
     setUserProgress(new Map());
     setCompletionEvents([]);
     setDailyTodos([]);
@@ -431,6 +481,13 @@ export function DashboardNew() {
   const handleTestReminder = useCallback(() => {
     void runReminder(true);
   }, [runReminder]);
+
+  const handleViewPotdInProblems = useCallback((question: Question) => {
+    setActiveTab('problems');
+    setFilterStatus('all');
+    setFilterDifficulty('all');
+    setSearchQuery(question.title);
+  }, []);
 
   const questionsWithProgress = useMemo(
     () =>
@@ -485,6 +542,10 @@ export function DashboardNew() {
 
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} isLoading={isLoadingAuth} />;
+  }
+
+  if (isAdminUsername(currentUser.username)) {
+    return <AdminUsersPanel onLogout={handleLogout} />;
   }
 
   const activeMeta = NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0];
@@ -656,6 +717,19 @@ export function DashboardNew() {
             />
           )}
 
+          {activeTab === 'cplearning' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={lastMinPrep}
+              onProgressChange={handleLastMinPrepChange}
+              categories={CP_LEARNING_CATEGORIES}
+              title="CP Learning"
+              description={`${CP_LEARNING_CATEGORIES.length} advanced CP topics — Math through Binary Lifting. Track Done / Revise / notes.`}
+              accent="#38BDF8"
+              icon={<Cpu className="w-5 h-5" style={{ color: '#38BDF8' }} strokeWidth={1.75} />}
+            />
+          )}
+
           {activeTab === 'lld' && currentUser && (
             <LldPanel
               userId={currentUser.id}
@@ -664,11 +738,23 @@ export function DashboardNew() {
             />
           )}
 
+          {activeTab === 'profile' && currentUser && (
+            <ProfilePanel
+              user={currentUser}
+              questions={questionsWithProgress}
+              completionEvents={completionEvents}
+              dailyTodos={dailyTodos}
+              reviseCount={stats.revise}
+            />
+          )}
+
           {activeTab === 'analytics' && (
             <StatsDashboard
               completionEvents={completionEvents}
               dailyTodos={dailyTodos}
               reviseCount={stats.revise}
+              userId={currentUser.id}
+              questions={questionsWithProgress}
             />
           )}
 

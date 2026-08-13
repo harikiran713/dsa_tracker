@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
 import { User } from '@/lib/types';
+import { ADMIN_USERNAME } from '@/lib/admin';
 
 function toUser(doc: { _id: ObjectId; username: string; created_at: string }): User {
   return {
@@ -13,6 +14,25 @@ function toUser(doc: { _id: ObjectId; username: string; created_at: string }): U
 
 export async function GET(request: NextRequest) {
   try {
+    const list = request.nextUrl.searchParams.get('list');
+    const admin = request.nextUrl.searchParams.get('admin');
+
+    if (list === '1') {
+      if (admin !== ADMIN_USERNAME) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+      const db = await getDb();
+      const docs = await db
+        .collection('users')
+        .find({})
+        .sort({ created_at: -1 })
+        .toArray();
+      const users = docs.map((doc) =>
+        toUser(doc as { _id: ObjectId; username: string; created_at: string })
+      );
+      return NextResponse.json(users);
+    }
+
     const username = request.nextUrl.searchParams.get('username');
     if (!username) {
       return NextResponse.json({ error: 'username required' }, { status: 400 });

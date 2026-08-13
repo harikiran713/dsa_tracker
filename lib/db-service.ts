@@ -11,7 +11,6 @@ import {
   LastMinPrepProgress,
   loadLastMinPrepProgress,
   saveLastMinPrepProgress,
-  mergeLastMinPrepProgress,
 } from './last-min-prep';
 import {
   LldProgress,
@@ -23,6 +22,12 @@ import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
+import {
+  ADMIN_USERNAME,
+  type AdminOverview,
+  type AdminResetScope,
+  type AdminUserDetail,
+} from './admin';
 
 export type { User, UserProgress };
 
@@ -45,8 +50,34 @@ function saveUserToCache(user: User): void {
   localStorage.setItem('interview_prep_user_id', user.id);
 }
 
+function rewriteStoredUserId(raw: string, oldUserId: string, newUserId: string): string {
+  try {
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) {
+      return JSON.stringify(
+        data.map((item) =>
+          item && typeof item === 'object'
+            ? { ...item, user_id: item.user_id === oldUserId ? newUserId : item.user_id }
+            : item
+        )
+      );
+    }
+    if (data && typeof data === 'object' && data.user_id === oldUserId) {
+      return JSON.stringify({ ...data, user_id: newUserId });
+    }
+  } catch {
+    // keep original
+  }
+  return raw;
+}
+
+/**
+ * Only used when the SAME username upgrades from an offline-* id to a server id.
+ * Never copy data between different accounts.
+ */
 function migrateLocalUserData(oldUserId: string, newUserId: string): void {
-  if (!oldUserId || oldUserId === newUserId || typeof window === 'undefined') return;
+  if (!oldUserId || !newUserId || oldUserId === newUserId || typeof window === 'undefined') return;
+  if (!oldUserId.startsWith('offline-')) return;
 
   for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_']) {
     const oldKey = `${prefix}${oldUserId}`;
@@ -54,12 +85,17 @@ function migrateLocalUserData(oldUserId: string, newUserId: string): void {
     const oldData = localStorage.getItem(oldKey);
     if (!oldData) continue;
 
+    const rewritten = rewriteStoredUserId(oldData, oldUserId, newUserId);
     const existing = localStorage.getItem(newKey);
     if (!existing) {
-      localStorage.setItem(newKey, oldData);
+      localStorage.setItem(newKey, rewritten);
     } else if (prefix === 'progress_') {
       try {
-        const merged = mergeProgress(JSON.parse(oldData), JSON.parse(existing));
+        const merged = mergeProgress(JSON.parse(rewritten), JSON.parse(existing)).map((item) => ({
+          ...item,
+          user_id: newUserId,
+          id: `${newUserId}-${item.question_id}`,
+        }));
         localStorage.setItem(newKey, JSON.stringify(merged));
       } catch {
         // keep existing
@@ -67,6 +103,17 @@ function migrateLocalUserData(oldUserId: string, newUserId: string): void {
     }
     localStorage.removeItem(oldKey);
   }
+}
+
+function shouldMigrateOfflineData(
+  previousId: string | null,
+  username: string,
+  newUserId: string
+): boolean {
+  if (!previousId || previousId === newUserId) return false;
+  if (!previousId.startsWith('offline-')) return false;
+  const cached = getCachedUser(username);
+  return cached?.id === previousId;
 }
 
 function getCachedUser(username: string): User | null {
@@ -143,6 +190,117 @@ function mergeTodos(local: DailyTodoItem[], remote: DailyTodoItem[]): DailyTodoI
   return [...merged.values()];
 }
 
+export async function fetchAllUsers(adminUsername: string): Promise<User[]> {
+  const result = await apiJson<User[]>(
+    `/api/users?list=1&admin=${encodeURIComponent(adminUsername)}`
+  );
+  return result ?? [];
+}
+
+export type NoteSearchSource = 'problems' | 'lastmin' | 'lld' | 'all';
+
+export interface NoteSearchHit {
+  source: 'problems' | 'lastmin' | 'lld';
+  user_id: string;
+  ref_id: string;
+  title: string;
+  status: string;
+  notes: string;
+  snippet: string;
+  updated_at: string;
+}
+
+export interface NoteSearchResponse {
+  q: string;
+  userId: string;
+  count: number;
+  results: NoteSearchHit[];
+}
+
+/** Server-side search across personal notes (problems / last-min / LLD). */
+export async function searchNotes(
+  userId: string,
+  q: string,
+  source: NoteSearchSource = 'all',
+  limit = 50
+): Promise<NoteSearchResponse | null> {
+  const params = new URLSearchParams({
+    userId,
+    q,
+    source,
+    limit: String(limit),
+  });
+  return apiJson<NoteSearchResponse>(`/api/notes/search?${params.toString()}`);
+}
+
+function adminQuery(pin: string, extra = ''): string {
+  const base = `admin=${encodeURIComponent(ADMIN_USERNAME)}&pin=${encodeURIComponent(pin)}`;
+  return extra ? `${base}&${extra}` : base;
+}
+
+export async function fetchAdminOverview(pin: string): Promise<AdminOverview | null> {
+  return apiJson<AdminOverview>(`/api/admin?${adminQuery(pin, 'action=overview')}`);
+}
+
+export async function fetchAdminUserDetail(
+  pin: string,
+  userId: string
+): Promise<AdminUserDetail | null> {
+  return apiJson<AdminUserDetail>(
+    `/api/admin?${adminQuery(pin, `action=user&userId=${encodeURIComponent(userId)}`)}`
+  );
+}
+
+export async function adminResetUser(
+  pin: string,
+  userId: string,
+  username: string,
+  scope: AdminResetScope
+): Promise<boolean> {
+  const result = await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: 'reset',
+      userId,
+      username,
+      scope,
+    }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function adminSetLeaderboardHidden(
+  pin: string,
+  userId: string,
+  username: string,
+  hidden: boolean
+): Promise<boolean> {
+  const result = await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: hidden ? 'hide_leaderboard' : 'unhide_leaderboard',
+      userId,
+      username,
+    }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function adminLogExport(pin: string): Promise<void> {
+  await apiJson<{ ok: boolean }>('/api/admin', {
+    method: 'POST',
+    body: JSON.stringify({
+      admin: ADMIN_USERNAME,
+      pin,
+      action: 'export_csv',
+    }),
+  });
+}
+
 export async function getOrCreateUser(username: string): Promise<User | null> {
   try {
     const previousId =
@@ -154,15 +312,20 @@ export async function getOrCreateUser(username: string): Promise<User | null> {
     });
 
     if (user) {
-      if (previousId && previousId !== user.id) {
-        migrateLocalUserData(previousId, user.id);
+      if (shouldMigrateOfflineData(previousId, username, user.id)) {
+        migrateLocalUserData(previousId!, user.id);
       }
       saveUserToCache(user);
       return user;
     }
 
     const cached = getCachedUser(username);
-    if (cached) return cached;
+    if (cached) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('interview_prep_user_id', cached.id);
+      }
+      return cached;
+    }
 
     const newUser: User = {
       id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -213,13 +376,24 @@ export function getUserProgressLocal(userId: string): UserProgress[] {
 }
 
 export async function syncUserProgressFromDb(userId: string): Promise<UserProgress[]> {
-  const localProgress = getUserProgressLocal(userId);
-  if (!isOnlineUserId(userId)) return localProgress;
+  const localProgress = getUserProgressLocal(userId).map((item) => ({
+    ...item,
+    user_id: userId,
+    id: `${userId}-${item.question_id}`,
+  }));
+  if (!isOnlineUserId(userId)) {
+    localStorage.setItem(`progress_${userId}`, JSON.stringify(localProgress));
+    return localProgress;
+  }
 
   const remoteProgress =
     (await apiJson<UserProgress[]>(`/api/progress?userId=${encodeURIComponent(userId)}`)) ?? [];
 
-  const merged = mergeProgress(localProgress, remoteProgress);
+  const merged = mergeProgress(localProgress, remoteProgress).map((item) => ({
+    ...item,
+    user_id: userId,
+    id: `${userId}-${item.question_id}`,
+  }));
   localStorage.setItem(`progress_${userId}`, JSON.stringify(merged));
 
   if (merged.length > 0) {
@@ -419,18 +593,26 @@ export { emptyDayTracker, loadDayTracker, saveDayTracker };
 export type { DayTrackerData };
 
 export async function loadLastMinPrepFromDb(userId: string): Promise<LastMinPrepProgress[]> {
-  const local = loadLastMinPrepProgress(userId);
-  if (!isOnlineUserId(userId)) return local;
+  if (!isOnlineUserId(userId)) {
+    return loadLastMinPrepProgress(userId);
+  }
 
-  const remote =
-    (await apiJson<LastMinPrepProgress[]>(
-      `/api/last-min-prep?userId=${encodeURIComponent(userId)}`
-    )) ?? [];
+  // Remote is source of truth when online — never let another account's
+  // leaked localStorage rows merge on top and re-upload.
+  const remote = await apiJson<LastMinPrepProgress[]>(
+    `/api/last-min-prep?userId=${encodeURIComponent(userId)}`
+  );
 
-  const merged = mergeLastMinPrepProgress(local, remote);
-  saveLastMinPrepProgress(userId, merged);
-  await syncLastMinPrepToDb(userId, merged);
-  return merged;
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveLastMinPrepProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadLastMinPrepProgress(userId);
 }
 
 export async function syncLastMinPrepToDb(
@@ -443,6 +625,24 @@ export async function syncLastMinPrepToDb(
     body: JSON.stringify({ userId, progress }),
   });
   return Boolean(result?.ok);
+}
+
+/** One-time wipe of leaked Last Min Prep / CP progress for harikiran. */
+export async function purgeLeakedLastMinPrepForUser(
+  username: string,
+  userId: string
+): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (username.trim().toLowerCase() !== 'harikiran') return false;
+
+  const flagKey = `last_min_prep_leak_purged_v1_${userId}`;
+  if (localStorage.getItem(flagKey) === '1') return false;
+
+  saveLastMinPrepProgress(userId, []);
+  localStorage.removeItem(`last_min_prep_${userId}`);
+  const ok = !isOnlineUserId(userId) || (await syncLastMinPrepToDb(userId, []));
+  if (ok) localStorage.setItem(flagKey, '1');
+  return ok;
 }
 
 export async function loadLldFromDb(userId: string): Promise<LldProgress[]> {
