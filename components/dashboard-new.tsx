@@ -676,10 +676,6 @@ export function DashboardNew() {
         </aside>
 
         <div className="workspace-main">
-          <nav className="app-nav app-nav--mobile lg:hidden" aria-label="Main mobile">
-            {navButtons}
-          </nav>
-
           <header className="workspace-page-header">
             <h1 className="workspace-page-title">{activeMeta.title}</h1>
             <p className="workspace-page-subtitle">{activeMeta.subtitle}</p>
