@@ -174,6 +174,20 @@ export function DashboardNew() {
     setMobileNavOpen(false);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) {
+      document.body.classList.remove('workspace-nav-locked');
+      return;
+    }
+    document.body.classList.add('workspace-nav-locked');
+    return () => document.body.classList.remove('workspace-nav-locked');
+  }, [mobileNavOpen]);
+
+  const selectTab = useCallback((id: MainTab) => {
+    setActiveTab(id);
+    setMobileNavOpen(false);
+  }, []);
+
   const applyProgressToState = (progress: UserProgress[]) => {
     const progressMap = new Map<number, UserProgress>();
     progress.forEach((p) => progressMap.set(p.question_id, p));
@@ -589,7 +603,7 @@ export function DashboardNew() {
         <button
           key={id}
           type="button"
-          onClick={() => setActiveTab(id)}
+          onClick={() => selectTab(id)}
           className={`app-nav-item ${activeTab === id ? 'app-nav-item--active' : ''}`}
         >
           <Icon className="w-4 h-4" strokeWidth={1.75} />
@@ -600,7 +614,7 @@ export function DashboardNew() {
   );
 
   return (
-    <main className="app-shell workspace-shell relative min-h-screen overflow-x-hidden">
+    <main className="app-shell workspace-shell relative min-h-screen">
       <div className="bg-blobs workspace-blobs">
         <div className="blob blob-blue" style={{ width: 560, height: 560, top: '-18%', left: '-14%' }} />
         <div className="blob blob-cyan" style={{ width: 320, height: 320, bottom: '-10%', right: '-8%' }} />
@@ -661,7 +675,7 @@ export function DashboardNew() {
       {mobileNavOpen && (
         <button
           type="button"
-          className="workspace-nav-backdrop lg:hidden"
+          className="workspace-nav-backdrop"
           aria-label="Close navigation"
           onClick={() => setMobileNavOpen(false)}
         />

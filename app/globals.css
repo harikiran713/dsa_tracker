@@ -745,10 +745,6 @@ html:not(.is-scrolling) .stat-card:hover {
 
 .z-content { position: relative; z-index: 1; }
 
-.app-shell {
-  contain: layout style;
-}
-
 /* ============================================================
    QUESTION CARDS (performance-optimized)
    ============================================================ */
@@ -1000,6 +996,16 @@ html.is-scrolling .progress-fill {
   border: 1px solid rgba(255,255,255,0.10);
   color: #CBD5E1;
   cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 60;
+}
+
+@media (min-width: 1024px) {
+  .workspace-menu-btn,
+  .workspace-nav-backdrop {
+    display: none !important;
+  }
 }
 
 .workspace-menu-btn:hover {
@@ -1066,6 +1072,7 @@ html.is-scrolling .progress-fill {
   display: grid;
   grid-template-columns: 1fr;
   min-height: calc(100vh - var(--shell-topbar-height));
+  overflow: visible;
 }
 
 @media (min-width: 1024px) {
@@ -1100,10 +1107,12 @@ html.is-scrolling .progress-fill {
   left: 0;
   bottom: 0;
   width: min(18rem, 84vw);
-  z-index: 40;
-  background: rgba(7,17,31,0.96);
+  z-index: 55;
+  background: rgba(7,17,31,0.98);
   border-right: 1px solid rgba(255,255,255,0.08);
   box-shadow: 12px 0 40px rgba(0,0,0,0.35);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (min-width: 1024px) {
@@ -1111,6 +1120,7 @@ html.is-scrolling .progress-fill {
     position: sticky;
     width: auto;
     box-shadow: none;
+    z-index: auto;
   }
 }
 
@@ -1118,9 +1128,14 @@ html.is-scrolling .progress-fill {
   position: fixed;
   inset: var(--shell-topbar-height) 0 0 0;
   background: rgba(2, 8, 18, 0.55);
-  z-index: 30;
+  z-index: 50;
   border: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.workspace-nav-locked {
+  overflow: hidden;
 }
 
 .workspace-sidebar-label {
