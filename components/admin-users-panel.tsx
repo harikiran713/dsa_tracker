@@ -21,10 +21,12 @@ import {
   TrendingUp,
   Hash,
   Link2,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_PIN_STORAGE_KEY,
   ADMIN_USERNAME,
+  AdminAuditAction,
   AdminOverview,
   AdminResetScope,
   AdminUserDetail,
@@ -65,6 +67,23 @@ function formatShortDate(iso: string | null | undefined): string {
   } catch {
     return iso;
   }
+}
+
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return 'Never';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const diffMs = Date.now() - then;
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  const mo = Math.round(day / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.round(mo / 12)}y ago`;
 }
 
 function downloadCsv(users: AdminUserRow[]) {
@@ -118,6 +137,64 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`admin-status ${tone}`}>{status}</span>;
 }
 
+const AVATAR_PALETTE: [string, string][] = [
+  ['#3B82F6', '#2563EB'],
+  ['#06B6D4', '#0891B2'],
+  ['#8B5CF6', '#7C3AED'],
+  ['#F59E0B', '#D97706'],
+  ['#10B981', '#059669'],
+  ['#EC4899', '#DB2777'],
+];
+
+function avatarGradient(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const [a, b] = AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+  return `linear-gradient(135deg, ${a}, ${b})`;
+}
+
+function leakSeverity(similarity: number): { label: string; tone: string } {
+  if (similarity >= 0.9) return { label: 'High risk', tone: 'admin-risk--high' };
+  if (similarity >= 0.8) return { label: 'Medium risk', tone: 'admin-risk--medium' };
+  return { label: 'Elevated', tone: 'admin-risk--low' };
+}
+
+function ProgressBar({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+  return (
+    <div className="admin-progress" title={`${value} of ${total} problems done`}>
+      <div className="admin-progress-track">
+        <div className="admin-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="admin-progress-label">
+        {value}
+        {total > 0 ? `/${total}` : ''}
+      </span>
+    </div>
+  );
+}
+
+const AUDIT_META: Record<AdminAuditAction, { icon: LucideIcon; tone: string; label: string }> = {
+  view_overview: { icon: Activity, tone: 'admin-audit-icon--neutral', label: 'Viewed overview' },
+  view_user: { icon: Eye, tone: 'admin-audit-icon--blue', label: 'Viewed user' },
+  reset: { icon: RotateCcw, tone: 'admin-audit-icon--amber', label: 'Reset progress' },
+  hide_leaderboard: { icon: EyeOff, tone: 'admin-audit-icon--rose', label: 'Hid from leaderboard' },
+  unhide_leaderboard: { icon: Eye, tone: 'admin-audit-icon--green', label: 'Unhid from leaderboard' },
+  export_csv: { icon: Download, tone: 'admin-audit-icon--cyan', label: 'Exported CSV' },
+};
+
+function UserRowSkeleton() {
+  return (
+    <div className="admin-skeleton-row" aria-hidden="true">
+      <div className="admin-skeleton admin-skeleton-avatar" />
+      <div className="admin-skeleton-lines">
+        <div className="admin-skeleton admin-skeleton-line" style={{ width: '35%' }} />
+        <div className="admin-skeleton admin-skeleton-line" style={{ width: '60%' }} />
+      </div>
+    </div>
+  );
+}
+
 export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
   const [pinInput, setPinInput] = useState('');
   const [pin, setPin] = useState<string | null>(null);
@@ -147,6 +224,17 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
     const t = window.setTimeout(() => setMessage(null), 4000);
     return () => window.clearTimeout(t);
   }, [message]);
+
+  useEffect(() => {
+    if (!detail && !resetFor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setDetail(null);
+      setResetFor(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detail, resetFor]);
 
   const unlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,6 +272,17 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
   }, [pin, load]);
 
   const users = overview?.users ?? [];
+
+  const filterOptions = useMemo<[FilterMode, string, number][]>(
+    () => [
+      ['all', 'All', users.length],
+      ['active', 'Active', users.filter((u) => !u.inactive).length],
+      ['inactive', 'Inactive', users.filter((u) => u.inactive).length],
+      ['leaks', 'Leak risk', users.filter((u) => u.leakRisk).length],
+      ['hidden', 'Hidden LB', users.filter((u) => u.hiddenFromLeaderboard).length],
+    ],
+    [users]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -245,14 +344,10 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
   if (!pin) {
     return (
       <main className="admin-shell relative min-h-screen overflow-x-hidden flex items-center justify-center p-4">
-        <div className="bg-blobs workspace-blobs">
-          <div className="blob blob-blue" style={{ width: 520, height: 520, top: '-18%', left: '-12%' }} />
-          <div className="blob blob-cyan" style={{ width: 360, height: 360, bottom: '-14%', right: '-10%' }} />
-        </div>
         <form onSubmit={unlock} className="z-content admin-unlock-card animate-scale-in">
           <div className="admin-unlock-brand">
             <div className="admin-brand-mark">
-              <Shield className="w-5 h-5 text-white" strokeWidth={1.75} />
+              <Shield className="w-5 h-5" strokeWidth={1.75} />
             </div>
             <div>
               <p className="admin-brand-name">PrepTracker</p>
@@ -309,26 +404,13 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
     { label: 'Leak pairs', value: stats?.leakPairs ?? '—', icon: Link2, tone: 'admin-stat--rose' },
   ];
 
-  const filterOptions: [FilterMode, string][] = [
-    ['all', 'All'],
-    ['active', 'Active'],
-    ['inactive', 'Inactive'],
-    ['leaks', 'Leak risk'],
-    ['hidden', 'Hidden LB'],
-  ];
-
   return (
     <main className="admin-shell relative min-h-screen overflow-x-hidden">
-      <div className="bg-blobs workspace-blobs">
-        <div className="blob blob-blue" style={{ width: 560, height: 560, top: '-18%', left: '-14%' }} />
-        <div className="blob blob-cyan" style={{ width: 320, height: 320, bottom: '-10%', right: '-8%' }} />
-      </div>
-
       <header className="glass-header sticky top-0 z-50">
         <div className="admin-topbar-inner">
           <div className="flex items-center gap-3 min-w-0">
             <div className="admin-brand-mark">
-              <Shield className="w-4 h-4 text-white" strokeWidth={1.75} />
+              <Shield className="w-4 h-4" strokeWidth={1.75} />
             </div>
             <div className="min-w-0 hidden sm:block">
               <p className="admin-brand-name">Admin console</p>
@@ -384,18 +466,18 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
         <div className="admin-stats-grid">
           {statCards.map(({ label, value, icon: Icon, tone }) => (
             <div key={label} className={`admin-stat-card ${tone}`}>
-              <div className="admin-stat-icon">
-                <Icon className="w-4 h-4" strokeWidth={1.75} />
+              <div className="admin-stat-top">
+                <span className="admin-stat-label">{label}</span>
+                <div className="admin-stat-icon">
+                  <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
               </div>
-              <div>
-                <p className="admin-stat-label">{label}</p>
-                <p className="admin-stat-value">{value}</p>
-              </div>
+              <p className="admin-stat-value">{value}</p>
             </div>
           ))}
         </div>
 
-        <div className="admin-toolbar glass-panel">
+        <div className="admin-toolbar">
           <div className="admin-search">
             <Search className="admin-search-icon" strokeWidth={1.75} />
             <input
@@ -404,23 +486,36 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
               placeholder="Search username…"
               className="glass-input w-full admin-search-input"
             />
+            {search && (
+              <button
+                type="button"
+                className="admin-search-clear"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            )}
           </div>
-          <div className="admin-filter-row">
-            {filterOptions.map(([id, label]) => (
+          <div className="admin-filter-row" role="tablist" aria-label="Filter users">
+            {filterOptions.map(([id, label, count]) => (
               <button
                 key={id}
                 type="button"
+                role="tab"
+                aria-selected={filter === id}
                 onClick={() => setFilter(id)}
                 className={`filter-pill ${filter === id ? 'active-all' : ''}`}
               >
                 {label}
+                <span className="admin-filter-count">{count}</span>
               </button>
             ))}
           </div>
         </div>
 
         {overview && overview.leaks.length > 0 && (
-          <div className="glass-panel admin-leak-panel">
+          <div className="admin-leak-panel">
             <div className="admin-leak-header">
               <div className="admin-leak-icon">
                 <AlertTriangle className="w-4 h-4" strokeWidth={1.75} />
@@ -433,24 +528,36 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
               </div>
             </div>
             <ul className="admin-leak-list">
-              {overview.leaks.slice(0, 8).map((l) => (
-                <li key={`${l.userAId}-${l.userBId}`} className="admin-leak-row">
-                  <div className="admin-leak-pair">
-                    <span className="admin-leak-user">{l.userA}</span>
-                    <span className="admin-leak-swap">↔</span>
-                    <span className="admin-leak-user">{l.userB}</span>
-                  </div>
-                  <span className="admin-leak-meta">
-                    {Math.round(l.similarity * 100)}% similar · {l.sharedDone} shared done
-                  </span>
-                </li>
-              ))}
+              {overview.leaks.slice(0, 8).map((l) => {
+                const sev = leakSeverity(l.similarity);
+                const pct = Math.round(l.similarity * 100);
+                return (
+                  <li key={`${l.userAId}-${l.userBId}`} className="admin-leak-row">
+                    <div className="admin-leak-main">
+                      <span className={`admin-risk-badge ${sev.tone}`}>{sev.label}</span>
+                      <div className="admin-leak-pair">
+                        <span className="admin-leak-user">{l.userA}</span>
+                        <Link2 className="admin-leak-swap-icon" strokeWidth={2} />
+                        <span className="admin-leak-user">{l.userB}</span>
+                      </div>
+                    </div>
+                    <div className="admin-leak-meter">
+                      <div className="admin-leak-meter-track">
+                        <div className="admin-leak-meter-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="admin-leak-meter-label">
+                        {pct}% · {l.sharedDone} shared
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
 
         <div className="admin-main-grid">
-          <section className="glass-panel admin-users-panel overflow-hidden">
+          <section className="admin-users-panel overflow-hidden">
             <div className="admin-panel-header">
               <div className="admin-panel-heading">
                 <Users className="w-4 h-4 admin-panel-heading-icon" strokeWidth={1.75} />
@@ -462,94 +569,131 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
             </div>
 
             {loading && users.length === 0 ? (
-              <div className="admin-empty">
-                <div className="spinner" />
-                <p>Loading users…</p>
+              <div>
+                <UserRowSkeleton />
+                <UserRowSkeleton />
+                <UserRowSkeleton />
+                <UserRowSkeleton />
               </div>
             ) : filtered.length === 0 ? (
               <div className="admin-empty">
-                <Search className="w-7 h-7" strokeWidth={1.5} />
+                <span className="admin-empty-icon">
+                  <Search className="w-5 h-5" strokeWidth={1.5} />
+                </span>
                 <p>No users match this filter.</p>
               </div>
             ) : (
-              <ul className="admin-user-list">
-                {filtered.map((u) => (
-                  <li key={u.id} className="admin-user-row">
-                    <div className="admin-user-identity">
-                      <span className="admin-user-avatar">{u.username[0]?.toUpperCase() ?? '?'}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="admin-user-name truncate">{u.username}</p>
-                          {u.inactive && <span className="admin-tag admin-tag--inactive">Inactive</span>}
-                          {u.leakRisk && <span className="admin-tag admin-tag--leak">Leak risk</span>}
-                          {u.hiddenFromLeaderboard && (
-                            <span className="admin-tag admin-tag--hidden">Hidden LB</span>
-                          )}
+              <div className="admin-user-table-wrap">
+                <div className="admin-table-grid admin-table-head" role="row">
+                  <span>User</span>
+                  <span>Problems</span>
+                  <span>Prep</span>
+                  <span>LLD</span>
+                  <span>100 Days</span>
+                  <span>Todos</span>
+                  <span>Last seen</span>
+                  <span className="admin-table-head-actions">Actions</span>
+                </div>
+                <ul className="admin-user-list">
+                  {filtered.map((u) => (
+                    <li key={u.id} className="admin-user-row admin-table-grid">
+                      <div className="admin-user-identity">
+                        <span
+                          className="admin-user-avatar"
+                          style={{ background: avatarGradient(u.username) }}
+                        >
+                          {u.username[0]?.toUpperCase() ?? '?'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="admin-user-name-row">
+                            <p className="admin-user-name truncate">{u.username}</p>
+                            {u.inactive && <span className="admin-tag admin-tag--inactive">Inactive</span>}
+                            {u.leakRisk && <span className="admin-tag admin-tag--leak">Leak risk</span>}
+                            {u.hiddenFromLeaderboard && (
+                              <span className="admin-tag admin-tag--hidden">Hidden LB</span>
+                            )}
+                          </div>
+                          <p className="admin-user-meta">Joined {formatShortDate(u.created_at)}</p>
                         </div>
-                        <p className="admin-user-meta">
-                          Joined {formatShortDate(u.created_at)} · Last seen {formatDate(u.lastSeen)}
-                        </p>
-                        <div className="admin-metric-row">
-                          <span className="admin-metric">
-                            <strong>{u.problemsDone}</strong> done
-                          </span>
-                          <span className="admin-metric">
-                            <strong>{u.problemsRevise}</strong> revise
-                          </span>
-                          <span className="admin-metric">
-                            <strong>{u.lastMinDone}</strong> prep
-                          </span>
-                          <span className="admin-metric">
-                            <strong>{u.lldDone}</strong> lld
-                          </span>
-                          <span className="admin-metric">
-                            <strong>{u.day100Days}</strong> days
+                      </div>
+
+                      <div className="admin-cell-grid-mobile">
+                        <div className="admin-cell" data-label="Problems">
+                          <ProgressBar value={u.problemsDone} total={u.problemsTotalTracked} />
+                        </div>
+                        <div className="admin-cell" data-label="Prep">
+                          <span className="admin-cell-value">{u.lastMinDone}</span>
+                        </div>
+                        <div className="admin-cell" data-label="LLD">
+                          <span className="admin-cell-value">{u.lldDone}</span>
+                        </div>
+                        <div className="admin-cell" data-label="100 Days">
+                          <span className="admin-cell-value">{u.day100Days}</span>
+                        </div>
+                        <div className="admin-cell" data-label="Todos">
+                          <span className="admin-cell-value">{u.todosDone}</span>
+                        </div>
+                        <div className="admin-cell" data-label="Last seen" title={formatDate(u.lastSeen)}>
+                          <span className="admin-cell-value admin-cell-value--muted">
+                            {formatRelative(u.lastSeen)}
                           </span>
                         </div>
                       </div>
-                    </div>
-                    <div className="admin-user-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-secondary flex items-center gap-1"
-                        onClick={() => void openDetail(u.id)}
-                      >
-                        <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-secondary flex items-center gap-1"
-                        onClick={() => {
-                          setResetFor(u);
-                          setResetScope('all');
-                        }}
-                        disabled={busyUserId === u.id}
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-secondary flex items-center gap-1"
-                        onClick={() => void toggleHidden(u)}
-                        disabled={busyUserId === u.id}
-                      >
-                        {u.hiddenFromLeaderboard ? (
+
+                      <div className="admin-user-actions">
+                        <button
+                          type="button"
+                          className="admin-icon-btn admin-tip"
+                          data-tip="View details"
+                          aria-label={`View ${u.username}`}
+                          onClick={() => void openDetail(u.id)}
+                        >
                           <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        )}
-                        {u.hiddenFromLeaderboard ? 'Unhide' : 'Hide LB'}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-icon-btn admin-tip"
+                          data-tip="Reset progress"
+                          aria-label={`Reset ${u.username}`}
+                          onClick={() => {
+                            setResetFor(u);
+                            setResetScope('all');
+                          }}
+                          disabled={busyUserId === u.id}
+                        >
+                          {busyUserId === u.id ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
+                          ) : (
+                            <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className={`admin-icon-btn admin-tip ${u.hiddenFromLeaderboard ? 'admin-icon-btn--active' : ''}`}
+                          data-tip={u.hiddenFromLeaderboard ? 'Unhide from leaderboard' : 'Hide from leaderboard'}
+                          aria-label={
+                            u.hiddenFromLeaderboard
+                              ? `Unhide ${u.username} from leaderboard`
+                              : `Hide ${u.username} from leaderboard`
+                          }
+                          onClick={() => void toggleHidden(u)}
+                          disabled={busyUserId === u.id}
+                        >
+                          {u.hiddenFromLeaderboard ? (
+                            <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          )}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </section>
 
-          <section className="glass-panel admin-audit-panel overflow-hidden">
+          <section className="admin-audit-panel overflow-hidden">
             <div className="admin-panel-header">
               <div className="admin-panel-heading">
                 <ClipboardList className="w-4 h-4 admin-panel-heading-icon admin-panel-heading-icon--blue" strokeWidth={1.75} />
@@ -561,23 +705,36 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
             </div>
             {!overview?.audit?.length ? (
               <div className="admin-empty admin-empty--compact">
-                <ClipboardList className="w-6 h-6" strokeWidth={1.5} />
+                <span className="admin-empty-icon">
+                  <ClipboardList className="w-5 h-5" strokeWidth={1.5} />
+                </span>
                 <p>No admin actions yet.</p>
               </div>
             ) : (
               <ul className="admin-audit-list">
-                {overview.audit.map((a) => (
-                  <li key={a.id} className="admin-audit-row">
-                    <span className="admin-audit-time">{formatDate(a.created_at)}</span>
-                    <div className="admin-audit-body">
-                      <span className="admin-audit-action">{a.action}</span>
-                      {a.target_username && (
-                        <span className="admin-audit-target">→ {a.target_username}</span>
-                      )}
-                      {a.detail && <span className="admin-audit-detail">{a.detail}</span>}
-                    </div>
-                  </li>
-                ))}
+                {overview.audit.map((a) => {
+                  const meta = AUDIT_META[a.action] ?? AUDIT_META.view_overview;
+                  const Icon = meta.icon;
+                  return (
+                    <li key={a.id} className="admin-audit-row">
+                      <span className={`admin-audit-icon ${meta.tone}`}>
+                        <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                      </span>
+                      <div className="admin-audit-body">
+                        <div className="admin-audit-line">
+                          <span className="admin-audit-action">{meta.label}</span>
+                          {a.target_username && (
+                            <span className="admin-audit-target">→ {a.target_username}</span>
+                          )}
+                        </div>
+                        {a.detail && <span className="admin-audit-detail">{a.detail}</span>}
+                        <span className="admin-audit-time" title={formatDate(a.created_at)}>
+                          {formatRelative(a.created_at)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -587,7 +744,7 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
       {(detail || detailLoading) && (
         <div className="admin-modal-backdrop" onClick={() => setDetail(null)} role="presentation">
           <div
-            className="glass-panel admin-modal admin-modal--wide animate-scale-in"
+            className="admin-modal admin-modal--wide animate-scale-in"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -605,15 +762,20 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
                   <p className="admin-modal-subtitle">Read-only progress snapshot</p>
                 </div>
               </div>
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDetail(null)}>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setDetail(null)}
+                aria-label="Close"
+              >
                 <X className="w-4 h-4" strokeWidth={2} />
               </button>
             </div>
 
             {detailLoading && !detail && (
-              <div className="admin-empty">
-                <div className="spinner" />
-                <p>Loading snapshot…</p>
+              <div>
+                <UserRowSkeleton />
+                <UserRowSkeleton />
               </div>
             )}
 
@@ -691,7 +853,7 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
       {resetFor && (
         <div className="admin-modal-backdrop" style={{ zIndex: 90 }} role="presentation">
           <div
-            className="glass-panel admin-modal animate-scale-in"
+            className="admin-modal animate-scale-in"
             style={{ maxWidth: '28rem' }}
             role="dialog"
             aria-modal="true"
@@ -707,7 +869,21 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
                   <p className="admin-modal-subtitle">Clears data for this user only</p>
                 </div>
               </div>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setResetFor(null)}
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" strokeWidth={2} />
+              </button>
             </div>
+
+            <div className="admin-modal-warning">
+              <AlertTriangle className="w-3.5 h-3.5" strokeWidth={2} />
+              <span>This permanently deletes the selected data for this user. This action cannot be undone.</span>
+            </div>
+
             <label className="admin-field-label" htmlFor="reset-scope">
               Scope
             </label>
@@ -734,7 +910,14 @@ export function AdminUsersPanel({ onLogout }: AdminUsersPanelProps) {
                 onClick={() => void confirmReset()}
                 disabled={busyUserId === resetFor.id}
               >
-                Confirm reset
+                {busyUserId === resetFor.id ? (
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+                    Resetting…
+                  </span>
+                ) : (
+                  'Confirm reset'
+                )}
               </button>
             </div>
           </div>
