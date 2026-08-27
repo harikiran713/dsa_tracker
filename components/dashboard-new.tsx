@@ -811,6 +811,7 @@ export function DashboardNew() {
               description={`${getAllAmazonPrepQuestions().length} curated Amazon-tagged questions. Track Done / Revise / notes.`}
               accent="#F59E0B"
               icon={<Package className="w-5 h-5" style={{ color: '#F59E0B' }} strokeWidth={1.75} />}
+              showTags={false}
             />
           )}
 
@@ -824,6 +825,7 @@ export function DashboardNew() {
               description={`${getAllAmazonTweakQuestions().length} curated Amazon-tagged questions (batch 2). Track Done / Revise / notes.`}
               accent="#8B5CF6"
               icon={<PackageSearch className="w-5 h-5" style={{ color: '#8B5CF6' }} strokeWidth={1.75} />}
+              showTags={false}
             />
           )}
 

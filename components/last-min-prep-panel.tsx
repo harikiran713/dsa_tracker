@@ -35,6 +35,7 @@ interface LastMinPrepPanelProps {
   description?: string;
   accent?: string;
   icon?: ReactNode;
+  showTags?: boolean;
 }
 
 type StatusFilter = 'all' | PrepStatus;
@@ -56,6 +57,7 @@ export function LastMinPrepPanel({
   description,
   accent = '#FB7185',
   icon,
+  showTags = true,
 }: LastMinPrepPanelProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(
     categories[0]?.id ?? null
@@ -309,10 +311,12 @@ export function LastMinPrepPanel({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <span className="last-min-lc">#{q.leetcodeId}</span>
-                                <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
-                                  {q.difficulty}
-                                </span>
-                                {!showSubtopics && (
+                                {showTags && (
+                                  <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
+                                    {q.difficulty}
+                                  </span>
+                                )}
+                                {showTags && !showSubtopics && (
                                   <span className="badge badge-topic">{q.pattern}</span>
                                 )}
                               </div>
