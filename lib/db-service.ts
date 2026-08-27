@@ -19,6 +19,16 @@ import {
   mergeLldProgress,
 } from './lld';
 import {
+  AmazonPrepProgress,
+  loadAmazonPrepProgress,
+  saveAmazonPrepProgress,
+} from './amazon-prep';
+import {
+  AmazonTweakProgress,
+  loadAmazonTweakProgress,
+  saveAmazonTweakProgress,
+} from './amazon-tweak';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -79,7 +89,7 @@ function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || !newUserId || oldUserId === newUserId || typeof window === 'undefined') return;
   if (!oldUserId.startsWith('offline-')) return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_', 'amazon_prep_', 'amazon_tweak_prep_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -666,6 +676,72 @@ export async function syncLldToDb(
 ): Promise<boolean> {
   if (!isOnlineUserId(userId)) return false;
   const result = await apiJson<{ ok: boolean }>('/api/lld', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function loadAmazonPrepFromDb(userId: string): Promise<AmazonPrepProgress[]> {
+  if (!isOnlineUserId(userId)) {
+    return loadAmazonPrepProgress(userId);
+  }
+
+  const remote = await apiJson<AmazonPrepProgress[]>(
+    `/api/amazon-prep?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveAmazonPrepProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadAmazonPrepProgress(userId);
+}
+
+export async function syncAmazonPrepToDb(
+  userId: string,
+  progress: AmazonPrepProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/amazon-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function loadAmazonTweakFromDb(userId: string): Promise<AmazonTweakProgress[]> {
+  if (!isOnlineUserId(userId)) {
+    return loadAmazonTweakProgress(userId);
+  }
+
+  const remote = await apiJson<AmazonTweakProgress[]>(
+    `/api/amazon-tweak-prep?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveAmazonTweakProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadAmazonTweakProgress(userId);
+}
+
+export async function syncAmazonTweakToDb(
+  userId: string,
+  progress: AmazonTweakProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/amazon-tweak-prep', {
     method: 'PUT',
     body: JSON.stringify({ userId, progress }),
   });

@@ -312,6 +312,9 @@ export function LastMinPrepPanel({
                                 <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
                                   {q.difficulty}
                                 </span>
+                                {!showSubtopics && (
+                                  <span className="badge badge-topic">{q.pattern}</span>
+                                )}
                               </div>
                               <a
                                 href={getPrepQuestionUrl(q)}
@@ -322,9 +325,6 @@ export function LastMinPrepPanel({
                                 {q.title}
                                 <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2} />
                               </a>
-                              {!showSubtopics && (
-                                <p className="text-xs mt-1" style={{ color: '#64748B' }}>{q.pattern}</p>
-                              )}
                               {notes && !editing && (
                                 <p className="last-min-notes-preview">{notes}</p>
                               )}

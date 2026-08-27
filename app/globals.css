@@ -531,6 +531,7 @@ html:not(.is-scrolling) .stat-card:hover {
 .badge-done   { background: rgba(34,197,94,0.14);  border: 1px solid rgba(34,197,94,0.30);  color: #4ADE80; }
 .badge-revise { background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.30); color: #FCD34D; }
 .badge-todo   { background: rgba(148,163,184,0.12);border: 1px solid rgba(148,163,184,0.22);color: #94A3B8; }
+.badge-topic  { background: rgba(148,163,184,0.10);border: 1px solid rgba(148,163,184,0.22);color: #94A3B8; text-transform: none; letter-spacing: 0; font-weight: 500; }
 
 /* ============================================================
    PROGRESS BAR

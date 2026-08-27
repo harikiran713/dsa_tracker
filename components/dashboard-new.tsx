@@ -33,6 +33,10 @@ import {
   purgeLeakedLastMinPrepForUser,
   loadLldFromDb,
   syncLldToDb,
+  loadAmazonPrepFromDb,
+  syncAmazonPrepToDb,
+  loadAmazonTweakFromDb,
+  syncAmazonTweakToDb,
 } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
@@ -57,6 +61,20 @@ import {
   loadLldProgress,
   saveLldProgress,
 } from '@/lib/lld';
+import {
+  AMAZON_PREP_CATEGORIES,
+  AmazonPrepProgress,
+  getAllAmazonPrepQuestions,
+  loadAmazonPrepProgress,
+  saveAmazonPrepProgress,
+} from '@/lib/amazon-prep';
+import {
+  AMAZON_TWEAK_CATEGORIES,
+  AmazonTweakProgress,
+  getAllAmazonTweakQuestions,
+  loadAmazonTweakProgress,
+  saveAmazonTweakProgress,
+} from '@/lib/amazon-tweak';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -65,12 +83,12 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
-  Menu, X, Circle,
+  Menu, X, Circle, Package, PackageSearch,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
   {
@@ -100,6 +118,20 @@ const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string
     icon: Rocket,
     title: 'Last Min Prep',
     subtitle: 'Must-do patterns with Done / Revise / notes.',
+  },
+  {
+    id: 'amazon',
+    label: 'Amazon',
+    icon: Package,
+    title: 'Amazon Prep',
+    subtitle: 'Curated Amazon-tagged interview questions.',
+  },
+  {
+    id: 'amazontweak',
+    label: 'Tweak Amazon',
+    icon: PackageSearch,
+    title: 'Tweak Amazon Prep',
+    subtitle: 'Second batch of curated Amazon-tagged questions.',
   },
   {
     id: 'cplearning',
@@ -153,6 +185,8 @@ export function DashboardNew() {
   const [dayTracker, setDayTracker] = useState<DayTrackerData | null>(null);
   const [dayTrackerSync, setDayTrackerSync] = useState<DayTrackerSyncStatus>('idle');
   const [lastMinPrep, setLastMinPrep] = useState<LastMinPrepProgress[]>([]);
+  const [amazonPrep, setAmazonPrep] = useState<AmazonPrepProgress[]>([]);
+  const [amazonTweak, setAmazonTweak] = useState<AmazonTweakProgress[]>([]);
   const [lldProgress, setLldProgress] = useState<LldProgress[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -268,6 +302,20 @@ export function DashboardNew() {
     setLldProgress(data);
   };
 
+  const loadAmazonPrepData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadAmazonPrepFromDb(userId)
+      : loadAmazonPrepProgress(userId);
+    setAmazonPrep(data);
+  };
+
+  const loadAmazonTweakData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadAmazonTweakFromDb(userId)
+      : loadAmazonTweakProgress(userId);
+    setAmazonTweak(data);
+  };
+
   const loadAnalyticsData = async (userId: string) => {
     const events = dedupeCompletionEvents(loadCompletionEvents(userId));
     saveCompletionEvents(userId, events);
@@ -295,6 +343,8 @@ export function DashboardNew() {
         setDailyTodos([]);
         setDayTracker(null);
         setLastMinPrep([]);
+        setAmazonPrep([]);
+        setAmazonTweak([]);
         setLldProgress([]);
         setLoadedTabs(new Set(['problems', 'day100']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
@@ -332,6 +382,16 @@ export function DashboardNew() {
     if (activeTab === 'lastmin' && !loadedTabs.has('lastmin')) {
       setLoadedTabs((prev) => new Set(prev).add('lastmin'));
       void loadLastMinPrepData(currentUser.id);
+    }
+
+    if (activeTab === 'amazon' && !loadedTabs.has('amazon')) {
+      setLoadedTabs((prev) => new Set(prev).add('amazon'));
+      void loadAmazonPrepData(currentUser.id);
+    }
+
+    if (activeTab === 'amazontweak' && !loadedTabs.has('amazontweak')) {
+      setLoadedTabs((prev) => new Set(prev).add('amazontweak'));
+      void loadAmazonTweakData(currentUser.id);
     }
 
     if (activeTab === 'cplearning' && !loadedTabs.has('cplearning')) {
@@ -422,6 +482,20 @@ export function DashboardNew() {
     setLldProgress(rows);
     saveLldProgress(currentUser.id, rows);
     void syncLldToDb(currentUser.id, rows);
+  }, [currentUser]);
+
+  const handleAmazonPrepChange = useCallback((rows: AmazonPrepProgress[]) => {
+    if (!currentUser) return;
+    setAmazonPrep(rows);
+    saveAmazonPrepProgress(currentUser.id, rows);
+    void syncAmazonPrepToDb(currentUser.id, rows);
+  }, [currentUser]);
+
+  const handleAmazonTweakChange = useCallback((rows: AmazonTweakProgress[]) => {
+    if (!currentUser) return;
+    setAmazonTweak(rows);
+    saveAmazonTweakProgress(currentUser.id, rows);
+    void syncAmazonTweakToDb(currentUser.id, rows);
   }, [currentUser]);
 
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
@@ -724,6 +798,32 @@ export function DashboardNew() {
               userId={currentUser.id}
               progress={lastMinPrep}
               onProgressChange={handleLastMinPrepChange}
+            />
+          )}
+
+          {activeTab === 'amazon' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={amazonPrep}
+              onProgressChange={handleAmazonPrepChange}
+              categories={AMAZON_PREP_CATEGORIES}
+              title="Amazon Prep"
+              description={`${getAllAmazonPrepQuestions().length} curated Amazon-tagged questions. Track Done / Revise / notes.`}
+              accent="#F59E0B"
+              icon={<Package className="w-5 h-5" style={{ color: '#F59E0B' }} strokeWidth={1.75} />}
+            />
+          )}
+
+          {activeTab === 'amazontweak' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={amazonTweak}
+              onProgressChange={handleAmazonTweakChange}
+              categories={AMAZON_TWEAK_CATEGORIES}
+              title="Tweak Amazon Prep"
+              description={`${getAllAmazonTweakQuestions().length} curated Amazon-tagged questions (batch 2). Track Done / Revise / notes.`}
+              accent="#8B5CF6"
+              icon={<PackageSearch className="w-5 h-5" style={{ color: '#8B5CF6' }} strokeWidth={1.75} />}
             />
           )}
 
