@@ -34,6 +34,11 @@ import {
   saveGooglePrepProgress,
 } from './google-prep';
 import {
+  DesignPrepProgress,
+  loadDesignPrepProgress,
+  saveDesignPrepProgress,
+} from './design-prep';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -780,6 +785,39 @@ export async function syncGooglePrepToDb(
 ): Promise<boolean> {
   if (!isOnlineUserId(userId)) return false;
   const result = await apiJson<{ ok: boolean }>('/api/google-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function loadDesignPrepFromDb(userId: string): Promise<DesignPrepProgress[]> {
+  if (!isOnlineUserId(userId)) {
+    return loadDesignPrepProgress(userId);
+  }
+
+  const remote = await apiJson<DesignPrepProgress[]>(
+    `/api/design-prep?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveDesignPrepProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadDesignPrepProgress(userId);
+}
+
+export async function syncDesignPrepToDb(
+  userId: string,
+  progress: DesignPrepProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/design-prep', {
     method: 'PUT',
     body: JSON.stringify({ userId, progress }),
   });
