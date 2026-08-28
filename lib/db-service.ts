@@ -29,6 +29,11 @@ import {
   saveAmazonTweakProgress,
 } from './amazon-tweak';
 import {
+  GooglePrepProgress,
+  loadGooglePrepProgress,
+  saveGooglePrepProgress,
+} from './google-prep';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -742,6 +747,39 @@ export async function syncAmazonTweakToDb(
 ): Promise<boolean> {
   if (!isOnlineUserId(userId)) return false;
   const result = await apiJson<{ ok: boolean }>('/api/amazon-tweak-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
+}
+
+export async function loadGooglePrepFromDb(userId: string): Promise<GooglePrepProgress[]> {
+  if (!isOnlineUserId(userId)) {
+    return loadGooglePrepProgress(userId);
+  }
+
+  const remote = await apiJson<GooglePrepProgress[]>(
+    `/api/google-prep?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveGooglePrepProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadGooglePrepProgress(userId);
+}
+
+export async function syncGooglePrepToDb(
+  userId: string,
+  progress: GooglePrepProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/google-prep', {
     method: 'PUT',
     body: JSON.stringify({ userId, progress }),
   });

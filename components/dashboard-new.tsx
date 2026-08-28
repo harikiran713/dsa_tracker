@@ -37,6 +37,8 @@ import {
   syncAmazonPrepToDb,
   loadAmazonTweakFromDb,
   syncAmazonTweakToDb,
+  loadGooglePrepFromDb,
+  syncGooglePrepToDb,
 } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
@@ -75,6 +77,13 @@ import {
   loadAmazonTweakProgress,
   saveAmazonTweakProgress,
 } from '@/lib/amazon-tweak';
+import {
+  GOOGLE_PREP_CATEGORIES,
+  GooglePrepProgress,
+  getAllGooglePrepQuestions,
+  loadGooglePrepProgress,
+  saveGooglePrepProgress,
+} from '@/lib/google-prep';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -83,12 +92,12 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
-  Menu, X, Circle, Package, PackageSearch,
+  Menu, X, Circle, Package, PackageSearch, Globe,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
   {
@@ -132,6 +141,13 @@ const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string
     icon: PackageSearch,
     title: 'Tweak Amazon Prep',
     subtitle: 'Second batch of curated Amazon-tagged questions.',
+  },
+  {
+    id: 'google',
+    label: 'Google',
+    icon: Globe,
+    title: 'Google Prep',
+    subtitle: 'Curated Google-tagged interview questions.',
   },
   {
     id: 'cplearning',
@@ -187,6 +203,7 @@ export function DashboardNew() {
   const [lastMinPrep, setLastMinPrep] = useState<LastMinPrepProgress[]>([]);
   const [amazonPrep, setAmazonPrep] = useState<AmazonPrepProgress[]>([]);
   const [amazonTweak, setAmazonTweak] = useState<AmazonTweakProgress[]>([]);
+  const [googlePrep, setGooglePrep] = useState<GooglePrepProgress[]>([]);
   const [lldProgress, setLldProgress] = useState<LldProgress[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -316,6 +333,13 @@ export function DashboardNew() {
     setAmazonTweak(data);
   };
 
+  const loadGooglePrepData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadGooglePrepFromDb(userId)
+      : loadGooglePrepProgress(userId);
+    setGooglePrep(data);
+  };
+
   const loadAnalyticsData = async (userId: string) => {
     const events = dedupeCompletionEvents(loadCompletionEvents(userId));
     saveCompletionEvents(userId, events);
@@ -345,6 +369,7 @@ export function DashboardNew() {
         setLastMinPrep([]);
         setAmazonPrep([]);
         setAmazonTweak([]);
+        setGooglePrep([]);
         setLldProgress([]);
         setLoadedTabs(new Set(['problems', 'day100']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
@@ -392,6 +417,11 @@ export function DashboardNew() {
     if (activeTab === 'amazontweak' && !loadedTabs.has('amazontweak')) {
       setLoadedTabs((prev) => new Set(prev).add('amazontweak'));
       void loadAmazonTweakData(currentUser.id);
+    }
+
+    if (activeTab === 'google' && !loadedTabs.has('google')) {
+      setLoadedTabs((prev) => new Set(prev).add('google'));
+      void loadGooglePrepData(currentUser.id);
     }
 
     if (activeTab === 'cplearning' && !loadedTabs.has('cplearning')) {
@@ -498,6 +528,13 @@ export function DashboardNew() {
     void syncAmazonTweakToDb(currentUser.id, rows);
   }, [currentUser]);
 
+  const handleGooglePrepChange = useCallback((rows: GooglePrepProgress[]) => {
+    if (!currentUser) return;
+    setGooglePrep(rows);
+    saveGooglePrepProgress(currentUser.id, rows);
+    void syncGooglePrepToDb(currentUser.id, rows);
+  }, [currentUser]);
+
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
     if (!currentUser) return;
     const numId = parseInt(questionId.split('-')[1]);
@@ -535,6 +572,9 @@ export function DashboardNew() {
     setDayTracker(null);
     setDayTrackerSync('idle');
     setLastMinPrep([]);
+    setAmazonPrep([]);
+    setAmazonTweak([]);
+    setGooglePrep([]);
     setLldProgress([]);
     setLoadedTabs(new Set());
     setReminderEnabled(false);
@@ -825,6 +865,20 @@ export function DashboardNew() {
               description={`${getAllAmazonTweakQuestions().length} curated Amazon-tagged questions (batch 2). Track Done / Revise / notes.`}
               accent="#8B5CF6"
               icon={<PackageSearch className="w-5 h-5" style={{ color: '#8B5CF6' }} strokeWidth={1.75} />}
+              showTags={false}
+            />
+          )}
+
+          {activeTab === 'google' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={googlePrep}
+              onProgressChange={handleGooglePrepChange}
+              categories={GOOGLE_PREP_CATEGORIES}
+              title="Google Prep"
+              description={`${getAllGooglePrepQuestions().length} curated Google-tagged questions. Track Done / Revise / notes.`}
+              accent="#4285F4"
+              icon={<Globe className="w-5 h-5" style={{ color: '#4285F4' }} strokeWidth={1.75} />}
               showTags={false}
             />
           )}
