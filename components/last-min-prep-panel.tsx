@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Rocket,
   RotateCcw,
+  Star,
   X,
 } from 'lucide-react';
 
@@ -279,7 +280,15 @@ export function LastMinPrepPanel({
                     }
                     let lastSubtopic: string | null = null;
 
-                    return visible.map((q, qi) => {
+                    // Surface must-do questions first, but only when there's no
+                    // subtopic grouping to preserve (sorting would scatter it).
+                    const orderedVisible = showSubtopics
+                      ? visible
+                      : [...visible].sort(
+                          (a, b) => Number(!!b.important) - Number(!!a.important)
+                        );
+
+                    return orderedVisible.map((q, qi) => {
                       const status = getStatus(q.leetcodeId);
                       const notes = getNotes(q.leetcodeId);
                       const editing = notesFor === q.leetcodeId;
@@ -311,6 +320,16 @@ export function LastMinPrepPanel({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <span className="last-min-lc">#{q.leetcodeId}</span>
+                                {q.important && (
+                                  <span
+                                    className="badge flex items-center gap-1"
+                                    style={{ color: '#FBBF24', border: '1px solid #FBBF2447', background: '#FBBF241A' }}
+                                    title="Must-do question"
+                                  >
+                                    <Star className="w-3 h-3" fill="#FBBF24" strokeWidth={0} />
+                                    Important
+                                  </span>
+                                )}
                                 {showTags && (
                                   <span className={`badge badge-${q.difficulty.toLowerCase()}`}>
                                     {q.difficulty}

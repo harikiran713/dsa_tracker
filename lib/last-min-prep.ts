@@ -9,6 +9,8 @@ export interface LastMinPrepQuestion {
   pattern: string;
   /** Optional custom URL (e.g. GeeksforGeeks). Defaults to LeetCode. */
   url?: string;
+  /** Flags a must-do question so it can be highlighted / surfaced first. */
+  important?: boolean;
 }
 
 export interface LastMinPrepProgress {
