@@ -1596,6 +1596,23 @@ body.workspace-nav-locked {
   margin-top: 2px;
 }
 
+.goal-note-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  color: #64748B;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.goal-note-action-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: #E2E8F0;
+}
+
 .stats-bar-chart {
   display: flex;
   flex-direction: column;

@@ -38,6 +38,7 @@ import {
   loadDesignPrepProgress,
   saveDesignPrepProgress,
 } from './design-prep';
+import { GoalNote, loadGoalNotes, saveGoalNotes } from './goal-notes';
 import {
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -99,7 +100,7 @@ function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || !newUserId || oldUserId === newUserId || typeof window === 'undefined') return;
   if (!oldUserId.startsWith('offline-')) return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_', 'amazon_prep_', 'amazon_tweak_prep_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_', 'amazon_prep_', 'amazon_tweak_prep_', 'google_prep_', 'design_prep_', 'goal_notes_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -204,6 +205,18 @@ function mergeTodos(local: DailyTodoItem[], remote: DailyTodoItem[]): DailyTodoI
   for (const item of local) {
     const existing = merged.get(item.id);
     if (!existing || item.created_at >= existing.created_at) {
+      merged.set(item.id, item);
+    }
+  }
+  return [...merged.values()];
+}
+
+function mergeGoalNotes(local: GoalNote[], remote: GoalNote[]): GoalNote[] {
+  const merged = new Map<string, GoalNote>();
+  for (const item of remote) merged.set(item.id, item);
+  for (const item of local) {
+    const existing = merged.get(item.id);
+    if (!existing || item.updated_at >= existing.updated_at) {
       merged.set(item.id, item);
     }
   }
@@ -822,6 +835,30 @@ export async function syncDesignPrepToDb(
     body: JSON.stringify({ userId, progress }),
   });
   return Boolean(result?.ok);
+}
+
+export async function loadGoalNotesFromDb(userId: string): Promise<GoalNote[]> {
+  const local = loadGoalNotes(userId);
+  if (!isOnlineUserId(userId)) return local;
+
+  const remote =
+    (await apiJson<GoalNote[]>(
+      `/api/goal-notes?userId=${encodeURIComponent(userId)}`
+    )) ?? [];
+  const merged = mergeGoalNotes(local, remote);
+  saveGoalNotes(userId, merged);
+  return merged;
+}
+
+export async function syncGoalNotesToDb(
+  userId: string,
+  notes: GoalNote[]
+): Promise<void> {
+  if (!isOnlineUserId(userId)) return;
+  await apiJson<{ ok: boolean }>('/api/goal-notes', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, notes }),
+  });
 }
 
 export function isOnlineUser(userId: string): boolean {
