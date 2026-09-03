@@ -855,16 +855,16 @@ export function DashboardNew() {
         </div>
       </header>
 
-      {mobileNavOpen && (
-        <button
-          type="button"
-          className="workspace-nav-backdrop"
-          aria-label="Close navigation"
-          onClick={() => setMobileNavOpen(false)}
-        />
-      )}
-
       <div className="workspace-layout z-content">
+        {mobileNavOpen && (
+          <button
+            type="button"
+            className="workspace-nav-backdrop"
+            aria-label="Close navigation"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
+
         <aside className={`workspace-sidebar ${mobileNavOpen ? 'workspace-sidebar--open' : ''}`}>
           <p className="workspace-sidebar-label">Navigate</p>
           <nav className="app-nav app-nav--sidebar" aria-label="Main">
