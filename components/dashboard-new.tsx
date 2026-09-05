@@ -97,6 +97,12 @@ import {
 } from '@/lib/design-prep';
 import { GoalNote, loadGoalNotes, saveGoalNotes } from '@/lib/goal-notes';
 import { GoalNotesPanel } from './goal-notes-panel';
+import {
+  LeetCodeSyncResult,
+  loadLeetCodeSync,
+  slugFromLeetCodeUrl,
+} from '@/lib/leetcode-sync';
+import { LeetCodeSyncPanel } from './leetcode-sync-panel';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -110,6 +116,7 @@ import {
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
+type FilterLeetCode   = 'all' | 'unsolved' | 'solved';
 type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'design' | 'goalnotes' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
@@ -222,6 +229,8 @@ export function DashboardNew() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<FilterDifficulty>('all');
+  const [filterLeetCode, setFilterLeetCode] = useState<FilterLeetCode>('all');
+  const [leetcodeSync, setLeetcodeSync] = useState<LeetCodeSyncResult | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>('problems');
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
   const [dailyTodos, setDailyTodos] = useState<DailyTodoItem[]>([]);
@@ -418,6 +427,7 @@ export function DashboardNew() {
         setReminderEnabled(getInitialReminderEnabled(user.id));
         setDailyTodos(loadDailyTodos(user.id));
         setDayTracker(loadDayTracker(user.id));
+        setLeetcodeSync(loadLeetCodeSync(user.id));
         // Never hydrate Last Min Prep from localStorage on login — another
         // account's leaked rows used to show up here. DB load fills it later.
         setLastMinPrep([]);
@@ -645,6 +655,7 @@ export function DashboardNew() {
     setDesignPrep([]);
     setGoalNotes([]);
     setLldProgress([]);
+    setLeetcodeSync(null);
     setLoadedTabs(new Set());
     setReminderEnabled(false);
     setReminderToast(null);
@@ -652,6 +663,7 @@ export function DashboardNew() {
     setSearchQuery('');
     setFilterStatus('all');
     setFilterDifficulty('all');
+    setFilterLeetCode('all');
     setMobileNavOpen(false);
   };
 
@@ -699,10 +711,22 @@ export function DashboardNew() {
     [questions, userProgress]
   );
 
+  const leetcodeSolvedSlugs = useMemo(
+    () => new Set(leetcodeSync?.solvedSlugs ?? []),
+    [leetcodeSync]
+  );
+
   const filtered = useMemo(() => {
     let result = questionsWithProgress;
     if (filterStatus !== 'all') result = result.filter((q) => q.status === filterStatus);
     if (filterDifficulty !== 'all') result = result.filter((q) => q.phase === filterDifficulty);
+    if (filterLeetCode !== 'all' && leetcodeSolvedSlugs.size > 0) {
+      result = result.filter((q) => {
+        const slug = slugFromLeetCodeUrl(q.leetcodeUrl);
+        const solvedOnLeetCode = slug ? leetcodeSolvedSlugs.has(slug) : false;
+        return filterLeetCode === 'unsolved' ? !solvedOnLeetCode : solvedOnLeetCode;
+      });
+    }
     if (debouncedSearch) {
       const query = debouncedSearch.toLowerCase();
       result = result.filter(
@@ -713,7 +737,7 @@ export function DashboardNew() {
       );
     }
     return result;
-  }, [questionsWithProgress, filterStatus, filterDifficulty, debouncedSearch]);
+  }, [questionsWithProgress, filterStatus, filterDifficulty, filterLeetCode, leetcodeSolvedSlugs, debouncedSearch]);
 
   const mixedFiltered = useMemo(
     () => mixQuestionsByDifficulty(filtered),
@@ -1017,6 +1041,12 @@ export function DashboardNew() {
 
           {activeTab === 'problems' && (
             <>
+              <LeetCodeSyncPanel
+                userId={currentUser.id}
+                sync={leetcodeSync}
+                onSyncChange={setLeetcodeSync}
+              />
+
               <div className="problems-toolbar glass-panel mb-6">
                 <div className="problems-stats">
                   {statCards.map(({ label, value, icon: Icon, tone }) => (
@@ -1096,6 +1126,28 @@ export function DashboardNew() {
                         Hard
                       </button>
                     </div>
+                  </div>
+
+                  <div className="problems-filter-group">
+                    <span className="problems-filter-label">LeetCode</span>
+                    {leetcodeSync ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {(['all', 'unsolved', 'solved'] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setFilterLeetCode(f)}
+                            className={`filter-pill capitalize ${filterLeetCode === f ? `active-${f === 'unsolved' ? 'all' : f === 'solved' ? 'done' : 'all'}` : ''}`}
+                          >
+                            {f === 'all' ? 'All' : f === 'unsolved' ? 'Not done yet' : 'Already done'}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: '#475569' }}>
+                        Connect LeetCode above to filter by solved status.
+                      </p>
+                    )}
                   </div>
 
                   <p className="problems-count">
