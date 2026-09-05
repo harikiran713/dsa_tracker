@@ -43,6 +43,8 @@ import {
   syncDesignPrepToDb,
   loadGoalNotesFromDb,
   syncGoalNotesToDb,
+  loadAllCompanyPrepFromDb,
+  syncAllCompanyPrepToDb,
 } from '@/lib/db-service';
 import { User, UserProgress } from '@/lib/types';
 import {
@@ -103,6 +105,13 @@ import {
   slugFromLeetCodeUrl,
 } from '@/lib/leetcode-sync';
 import { LeetCodeSyncPanel } from './leetcode-sync-panel';
+import {
+  ALL_COMPANY_PREP_CATEGORIES,
+  AllCompanyPrepProgress,
+  getAllCompanyPrepQuestions,
+  loadAllCompanyPrepProgress,
+  saveAllCompanyPrepProgress,
+} from '@/lib/all-company-prep';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollPerformance } from '@/hooks/use-scroll-performance';
 import { useDailyTodoReminder } from '@/hooks/use-daily-todo-reminder';
@@ -111,13 +120,13 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
-  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target,
+  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target, Building2,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
 type FilterLeetCode   = 'all' | 'unsolved' | 'solved';
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'design' | 'goalnotes' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'allcompany' | 'design' | 'goalnotes' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
   {
@@ -168,6 +177,13 @@ const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string
     icon: Globe,
     title: 'Google Prep',
     subtitle: 'Curated Google-tagged interview questions.',
+  },
+  {
+    id: 'allcompany',
+    label: 'All Company',
+    icon: Building2,
+    title: 'All Company',
+    subtitle: 'Amazon + Tweak Amazon + Google, merged and deduped.',
   },
   {
     id: 'design',
@@ -241,6 +257,7 @@ export function DashboardNew() {
   const [amazonTweak, setAmazonTweak] = useState<AmazonTweakProgress[]>([]);
   const [googlePrep, setGooglePrep] = useState<GooglePrepProgress[]>([]);
   const [designPrep, setDesignPrep] = useState<DesignPrepProgress[]>([]);
+  const [allCompanyPrep, setAllCompanyPrep] = useState<AllCompanyPrepProgress[]>([]);
   const [goalNotes, setGoalNotes] = useState<GoalNote[]>([]);
   const [lldProgress, setLldProgress] = useState<LldProgress[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
@@ -385,6 +402,13 @@ export function DashboardNew() {
     setDesignPrep(data);
   };
 
+  const loadAllCompanyPrepData = async (userId: string) => {
+    const data = isOnlineUser(userId)
+      ? await loadAllCompanyPrepFromDb(userId)
+      : loadAllCompanyPrepProgress(userId);
+    setAllCompanyPrep(data);
+  };
+
   const loadGoalNotesData = async (userId: string) => {
     const data = await loadGoalNotesFromDb(userId);
     setGoalNotes(data);
@@ -421,6 +445,7 @@ export function DashboardNew() {
         setAmazonTweak([]);
         setGooglePrep([]);
         setDesignPrep([]);
+        setAllCompanyPrep([]);
         setGoalNotes([]);
         setLldProgress([]);
         setLoadedTabs(new Set(['problems', 'day100']));
@@ -480,6 +505,11 @@ export function DashboardNew() {
     if (activeTab === 'design' && !loadedTabs.has('design')) {
       setLoadedTabs((prev) => new Set(prev).add('design'));
       void loadDesignPrepData(currentUser.id);
+    }
+
+    if (activeTab === 'allcompany' && !loadedTabs.has('allcompany')) {
+      setLoadedTabs((prev) => new Set(prev).add('allcompany'));
+      void loadAllCompanyPrepData(currentUser.id);
     }
 
     if (activeTab === 'goalnotes' && !loadedTabs.has('goalnotes')) {
@@ -605,6 +635,13 @@ export function DashboardNew() {
     void syncDesignPrepToDb(currentUser.id, rows);
   }, [currentUser]);
 
+  const handleAllCompanyPrepChange = useCallback((rows: AllCompanyPrepProgress[]) => {
+    if (!currentUser) return;
+    setAllCompanyPrep(rows);
+    saveAllCompanyPrepProgress(currentUser.id, rows);
+    void syncAllCompanyPrepToDb(currentUser.id, rows);
+  }, [currentUser]);
+
   const handleGoalNotesChange = useCallback((rows: GoalNote[]) => {
     if (!currentUser) return;
     setGoalNotes(rows);
@@ -653,6 +690,7 @@ export function DashboardNew() {
     setAmazonTweak([]);
     setGooglePrep([]);
     setDesignPrep([]);
+    setAllCompanyPrep([]);
     setGoalNotes([]);
     setLldProgress([]);
     setLeetcodeSync(null);
@@ -945,6 +983,7 @@ export function DashboardNew() {
               accent="#F59E0B"
               icon={<Package className="w-5 h-5" style={{ color: '#F59E0B' }} strokeWidth={1.75} />}
               showTags={false}
+              leetcodeSync={leetcodeSync}
             />
           )}
 
@@ -959,6 +998,7 @@ export function DashboardNew() {
               accent="#8B5CF6"
               icon={<PackageSearch className="w-5 h-5" style={{ color: '#8B5CF6' }} strokeWidth={1.75} />}
               showTags={false}
+              leetcodeSync={leetcodeSync}
             />
           )}
 
@@ -973,6 +1013,22 @@ export function DashboardNew() {
               accent="#4285F4"
               icon={<Globe className="w-5 h-5" style={{ color: '#4285F4' }} strokeWidth={1.75} />}
               showTags={false}
+              leetcodeSync={leetcodeSync}
+            />
+          )}
+
+          {activeTab === 'allcompany' && currentUser && (
+            <LastMinPrepPanel
+              userId={currentUser.id}
+              progress={allCompanyPrep}
+              onProgressChange={handleAllCompanyPrepChange}
+              categories={ALL_COMPANY_PREP_CATEGORIES}
+              title="All Company"
+              description={`${getAllCompanyPrepQuestions().length} questions merged from Amazon, Tweak Amazon, and Google (deduped). Track Done / Revise / notes.`}
+              accent="#22C55E"
+              icon={<Building2 className="w-5 h-5" style={{ color: '#22C55E' }} strokeWidth={1.75} />}
+              showTags={false}
+              leetcodeSync={leetcodeSync}
             />
           )}
 

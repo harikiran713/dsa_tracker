@@ -26,6 +26,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
+import { LeetCodeSyncResult } from '@/lib/leetcode-sync';
 
 interface LastMinPrepPanelProps {
   userId: string;
@@ -37,7 +38,10 @@ interface LastMinPrepPanelProps {
   accent?: string;
   icon?: ReactNode;
   showTags?: boolean;
+  leetcodeSync?: LeetCodeSyncResult | null;
 }
+
+type LeetCodeFilter = 'all' | 'unsolved' | 'solved';
 
 type StatusFilter = 'all' | PrepStatus;
 
@@ -59,11 +63,17 @@ export function LastMinPrepPanel({
   accent = '#FB7185',
   icon,
   showTags = true,
+  leetcodeSync,
 }: LastMinPrepPanelProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(
     categories[0]?.id ?? null
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [leetCodeFilter, setLeetCodeFilter] = useState<LeetCodeFilter>('all');
+  const solvedIdSet = useMemo(
+    () => new Set(leetcodeSync?.solvedIds ?? []),
+    [leetcodeSync]
+  );
   const [notesFor, setNotesFor] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
@@ -124,8 +134,13 @@ export function LastMinPrepPanel({
     progressMap.get(leetcodeId)?.notes ?? '';
 
   const matchesFilter = (leetcodeId: number) => {
-    if (statusFilter === 'all') return true;
-    return getStatus(leetcodeId) === statusFilter;
+    if (statusFilter !== 'all' && getStatus(leetcodeId) !== statusFilter) return false;
+    if (leetCodeFilter !== 'all' && solvedIdSet.size > 0) {
+      const solvedOnLeetCode = solvedIdSet.has(leetcodeId);
+      if (leetCodeFilter === 'unsolved' && solvedOnLeetCode) return false;
+      if (leetCodeFilter === 'solved' && !solvedOnLeetCode) return false;
+    }
+    return true;
   };
 
   const pct = uniqueTotal > 0 ? Math.round((stats.done / uniqueTotal) * 100) : 0;
@@ -232,6 +247,26 @@ export function LastMinPrepPanel({
             </button>
           ))}
         </div>
+
+        {leetcodeSync ? (
+          <div className="flex items-center gap-2 flex-wrap mt-3">
+            <span className="text-xs" style={{ color: '#64748B' }}>LeetCode:</span>
+            {(['all', 'unsolved', 'solved'] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setLeetCodeFilter(f)}
+                className={`filter-pill capitalize ${leetCodeFilter === f ? `active-${f === 'unsolved' ? 'all' : f === 'solved' ? 'done' : 'all'}` : ''}`}
+              >
+                {f === 'all' ? 'All' : f === 'unsolved' ? 'Not done yet' : 'Already done'}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs mt-3" style={{ color: '#475569' }}>
+            Connect LeetCode on the Problems tab to filter by solved status here too.
+          </p>
+        )}
       </div>
 
       <div className="last-min-categories">

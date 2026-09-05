@@ -40,6 +40,11 @@ import {
 } from './design-prep';
 import { GoalNote, loadGoalNotes, saveGoalNotes } from './goal-notes';
 import {
+  AllCompanyPrepProgress,
+  loadAllCompanyPrepProgress,
+  saveAllCompanyPrepProgress,
+} from './all-company-prep';
+import {
   LeaderboardEntry,
   LeaderboardPeriod,
 } from './leaderboard';
@@ -100,7 +105,7 @@ function migrateLocalUserData(oldUserId: string, newUserId: string): void {
   if (!oldUserId || !newUserId || oldUserId === newUserId || typeof window === 'undefined') return;
   if (!oldUserId.startsWith('offline-')) return;
 
-  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_', 'amazon_prep_', 'amazon_tweak_prep_', 'google_prep_', 'design_prep_', 'goal_notes_']) {
+  for (const prefix of ['progress_', 'completion_events_', 'daily_todos_', 'day_tracker_', 'last_min_prep_', 'lld_progress_', 'amazon_prep_', 'amazon_tweak_prep_', 'google_prep_', 'design_prep_', 'goal_notes_', 'all_company_prep_']) {
     const oldKey = `${prefix}${oldUserId}`;
     const newKey = `${prefix}${newUserId}`;
     const oldData = localStorage.getItem(oldKey);
@@ -859,6 +864,39 @@ export async function syncGoalNotesToDb(
     method: 'PUT',
     body: JSON.stringify({ userId, notes }),
   });
+}
+
+export async function loadAllCompanyPrepFromDb(userId: string): Promise<AllCompanyPrepProgress[]> {
+  if (!isOnlineUserId(userId)) {
+    return loadAllCompanyPrepProgress(userId);
+  }
+
+  const remote = await apiJson<AllCompanyPrepProgress[]>(
+    `/api/all-company-prep?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (remote !== null) {
+    const normalized = remote.map((row) => ({
+      ...row,
+      user_id: userId,
+    }));
+    saveAllCompanyPrepProgress(userId, normalized);
+    return normalized;
+  }
+
+  return loadAllCompanyPrepProgress(userId);
+}
+
+export async function syncAllCompanyPrepToDb(
+  userId: string,
+  progress: AllCompanyPrepProgress[]
+): Promise<boolean> {
+  if (!isOnlineUserId(userId)) return false;
+  const result = await apiJson<{ ok: boolean }>('/api/all-company-prep', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, progress }),
+  });
+  return Boolean(result?.ok);
 }
 
 export function isOnlineUser(userId: string): boolean {
