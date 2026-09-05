@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import {
+  LEETCODE_SYNC_SCRIPT,
   LeetCodeSyncResult,
   clearLeetCodeSync,
-  fetchLeetCodeSync,
-  saveLeetCodeSession,
+  parsePastedSyncPayload,
   saveLeetCodeSync,
 } from '@/lib/leetcode-sync';
-import { CheckCircle2, Link2, Loader2, RefreshCw, Unlink } from 'lucide-react';
+import { CheckCircle2, Clipboard, ClipboardCheck, Link2, RefreshCw, Unlink } from 'lucide-react';
 
 interface LeetCodeSyncPanelProps {
   userId: string;
@@ -25,30 +25,35 @@ function formatTimestamp(iso: string): string {
 }
 
 export function LeetCodeSyncPanel({ userId, sync, onSyncChange }: LeetCodeSyncPanelProps) {
-  const [sessionInput, setSessionInput] = useState('');
+  const [pasted, setPasted] = useState('');
   const [expanded, setExpanded] = useState(!sync);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
+  const [scriptCopied, setScriptCopied] = useState(false);
 
-  const doSync = async () => {
-    const session = sessionInput.trim();
-    if (!session) {
-      setError('Paste your LEETCODE_SESSION cookie value first.');
+  const copyScript = async () => {
+    try {
+      await navigator.clipboard.writeText(LEETCODE_SYNC_SCRIPT);
+      setScriptCopied(true);
+      window.setTimeout(() => setScriptCopied(false), 2500);
+    } catch {
+      setError('Could not copy to clipboard — your browser may be blocking it.');
+    }
+  };
+
+  const doSync = () => {
+    if (!pasted.trim()) {
+      setError('Paste the output the script copied to your clipboard first.');
       return;
     }
-    setSyncing(true);
     setError('');
     try {
-      const result = await fetchLeetCodeSync(session);
-      saveLeetCodeSession(userId, session);
+      const result = parsePastedSyncPayload(pasted);
       saveLeetCodeSync(userId, result);
       onSyncChange(result);
-      setSessionInput('');
+      setPasted('');
       setExpanded(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed.');
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -103,21 +108,45 @@ export function LeetCodeSyncPanel({ userId, sync, onSyncChange }: LeetCodeSyncPa
 
       {expanded && (
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-xs mb-2" style={{ color: '#64748B' }}>
-            Paste your <code>LEETCODE_SESSION</code> cookie value (DevTools → Application → Cookies →
-            leetcode.com). It's stored only on this device and sent only to our server to call LeetCode
-            on your behalf — never saved in our database.
+          <p className="text-xs mb-3" style={{ color: '#64748B' }}>
+            This runs entirely in your own browser using your existing LeetCode login — nothing is ever sent
+            to our servers, and there's no cookie to find or copy. It never expires: just re-run it whenever
+            you want to refresh.
           </p>
+          <ol className="text-xs mb-3 space-y-1.5 list-decimal list-inside" style={{ color: '#94A3B8' }}>
+            <li>Copy the script below, then open <strong className="text-white">leetcode.com</strong> in a new tab (make sure you're logged in).</li>
+            <li>Open DevTools (F12) → Console tab, paste the script, and press Enter.</li>
+            <li>It'll copy your solved-problems data to your clipboard automatically — come back here and paste it below.</li>
+          </ol>
+
+          <button
+            type="button"
+            onClick={copyScript}
+            className="btn btn-sm btn-secondary flex items-center gap-1.5 mb-3"
+          >
+            {scriptCopied ? (
+              <>
+                <ClipboardCheck className="w-3.5 h-3.5" strokeWidth={2} />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Clipboard className="w-3.5 h-3.5" strokeWidth={2} />
+                Copy sync script
+              </>
+            )}
+          </button>
+
           <div className="flex flex-col sm:flex-row gap-2">
             <input
-              type="password"
-              value={sessionInput}
+              type="text"
+              value={pasted}
               onChange={(e) => {
-                setSessionInput(e.target.value);
+                setPasted(e.target.value);
                 setError('');
               }}
               onKeyDown={(e) => e.key === 'Enter' && doSync()}
-              placeholder="Paste LEETCODE_SESSION cookie value…"
+              placeholder="Paste the copied result here…"
               className="glass-input flex-1 py-2 text-sm"
               style={{ borderRadius: 12, padding: '8px 14px' }}
               autoComplete="off"
@@ -125,10 +154,9 @@ export function LeetCodeSyncPanel({ userId, sync, onSyncChange }: LeetCodeSyncPa
             <button
               type="button"
               onClick={doSync}
-              disabled={syncing}
-              className="btn btn-sm btn-primary flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50"
+              className="btn btn-sm btn-primary flex items-center gap-1.5 flex-shrink-0"
             >
-              {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> : <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />}
+              <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
               Sync
             </button>
           </div>

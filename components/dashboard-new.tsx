@@ -907,7 +907,6 @@ export function DashboardNew() {
               <div className="workspace-user-avatar">
                 {currentUser.username[0].toUpperCase()}
               </div>
-              <span className="hidden md:inline">{currentUser.username}</span>
             </div>
             <button onClick={handleLogout} className="btn btn-sm btn-danger flex items-center gap-1.5">
               <LogOut className="w-3.5 h-3.5" strokeWidth={2} />
