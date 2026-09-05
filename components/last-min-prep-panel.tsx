@@ -143,6 +143,9 @@ export function LastMinPrepPanel({
     return true;
   };
 
+  const totalVisible = uniqueQuestions.filter((q) => matchesFilter(q.leetcodeId)).length;
+  const isFiltered = statusFilter !== 'all' || leetCodeFilter !== 'all';
+
   const pct = uniqueTotal > 0 ? Math.round((stats.done / uniqueTotal) * 100) : 0;
   const subtitle =
     description ??
@@ -265,6 +268,12 @@ export function LastMinPrepPanel({
         ) : (
           <p className="text-xs mt-3" style={{ color: '#475569' }}>
             Connect LeetCode on the Problems tab to filter by solved status here too.
+          </p>
+        )}
+
+        {isFiltered && (
+          <p className="text-xs mt-3" style={{ color: '#94A3B8' }}>
+            Showing <strong className="text-white tabular-nums">{totalVisible}</strong> of {uniqueTotal} questions
           </p>
         )}
       </div>
