@@ -969,6 +969,7 @@ export function DashboardNew() {
               userId={currentUser.id}
               progress={lastMinPrep}
               onProgressChange={handleLastMinPrepChange}
+              leetcodeSync={leetcodeSync}
             />
           )}
 
@@ -1043,6 +1044,7 @@ export function DashboardNew() {
               accent="#22D3EE"
               icon={<Layers className="w-5 h-5" style={{ color: '#22D3EE' }} strokeWidth={1.75} />}
               showTags={false}
+              leetcodeSync={leetcodeSync}
             />
           )}
 
@@ -1064,6 +1066,7 @@ export function DashboardNew() {
               description={`${CP_LEARNING_CATEGORIES.length} advanced CP topics — Math through Binary Lifting. Track Done / Revise / notes.`}
               accent="#38BDF8"
               icon={<Cpu className="w-5 h-5" style={{ color: '#38BDF8' }} strokeWidth={1.75} />}
+              leetcodeSync={leetcodeSync}
             />
           )}
 
