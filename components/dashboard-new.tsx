@@ -758,7 +758,7 @@ export function DashboardNew() {
     let result = questionsWithProgress;
     if (filterStatus !== 'all') result = result.filter((q) => q.status === filterStatus);
     if (filterDifficulty !== 'all') result = result.filter((q) => q.phase === filterDifficulty);
-    if (filterLeetCode !== 'all' && leetcodeSolvedSlugs.size > 0) {
+    if (filterLeetCode !== 'all') {
       result = result.filter((q) => {
         const slug = slugFromLeetCodeUrl(q.leetcodeUrl);
         const solvedOnLeetCode = slug ? leetcodeSolvedSlugs.has(slug) : false;

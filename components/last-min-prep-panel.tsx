@@ -135,7 +135,7 @@ export function LastMinPrepPanel({
 
   const matchesFilter = (leetcodeId: number) => {
     if (statusFilter !== 'all' && getStatus(leetcodeId) !== statusFilter) return false;
-    if (leetCodeFilter !== 'all' && solvedIdSet.size > 0) {
+    if (leetCodeFilter !== 'all') {
       const solvedOnLeetCode = solvedIdSet.has(leetcodeId);
       if (leetCodeFilter === 'unsolved' && solvedOnLeetCode) return false;
       if (leetCodeFilter === 'solved' && !solvedOnLeetCode) return false;
