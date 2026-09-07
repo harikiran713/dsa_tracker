@@ -327,6 +327,18 @@ html:not(.is-scrolling) .stat-card:hover {
 
 .glass-input:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.glass-input option {
+  background: #0F172A;
+  color: #FFFFFF;
+}
+
+.glass-input option:checked,
+.glass-input option:hover,
+.glass-input option:focus {
+  background: #3B82F6;
+  color: #FFFFFF;
+}
+
 .glass-textarea {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(255,255,255,0.12);
