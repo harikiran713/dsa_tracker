@@ -70,6 +70,7 @@ export function LastMinPrepPanel({
   );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [leetCodeFilter, setLeetCodeFilter] = useState<LeetCodeFilter>('all');
+  const [topicFilter, setTopicFilter] = useState<string>('all');
   const solvedIdSet = useMemo(
     () => new Set(leetcodeSync?.solvedIds ?? []),
     [leetcodeSync]
@@ -83,6 +84,15 @@ export function LastMinPrepPanel({
     [categories]
   );
   const uniqueTotal = uniqueQuestions.length;
+  const patternById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const q of uniqueQuestions) map.set(q.leetcodeId, q.pattern);
+    return map;
+  }, [uniqueQuestions]);
+  const topicOptions = useMemo(
+    () => Array.from(new Set(uniqueQuestions.map((q) => q.pattern))).sort((a, b) => a.localeCompare(b)),
+    [uniqueQuestions]
+  );
   const progressMap = useMemo(() => progressMapFromRows(progress), [progress]);
   const stats = useMemo(
     () => getPrepStats(progress, uniqueQuestions),
@@ -135,6 +145,7 @@ export function LastMinPrepPanel({
 
   const matchesFilter = (leetcodeId: number) => {
     if (statusFilter !== 'all' && getStatus(leetcodeId) !== statusFilter) return false;
+    if (topicFilter !== 'all' && patternById.get(leetcodeId) !== topicFilter) return false;
     if (leetCodeFilter !== 'all') {
       const solvedOnLeetCode = solvedIdSet.has(leetcodeId);
       if (leetCodeFilter === 'unsolved' && solvedOnLeetCode) return false;
@@ -144,7 +155,7 @@ export function LastMinPrepPanel({
   };
 
   const totalVisible = uniqueQuestions.filter((q) => matchesFilter(q.leetcodeId)).length;
-  const isFiltered = statusFilter !== 'all' || leetCodeFilter !== 'all';
+  const isFiltered = statusFilter !== 'all' || leetCodeFilter !== 'all' || topicFilter !== 'all';
 
   const pct = uniqueTotal > 0 ? Math.round((stats.done / uniqueTotal) * 100) : 0;
   const subtitle =
@@ -238,7 +249,7 @@ export function LastMinPrepPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-5">
+        <div className="flex flex-wrap items-center gap-2 mt-5">
           {(['all', 'todo', 'done', 'revise'] as const).map((f) => (
             <button
               key={f}
@@ -249,6 +260,21 @@ export function LastMinPrepPanel({
               {f === 'all' ? 'All' : f === 'todo' ? 'To Do' : f === 'done' ? 'Done' : 'Revise'}
             </button>
           ))}
+
+          <select
+            value={topicFilter}
+            onChange={(e) => setTopicFilter(e.target.value)}
+            className="glass-input text-sm py-1.5 px-3 rounded-full"
+            style={{ maxWidth: 220 }}
+            aria-label="Filter by topic"
+          >
+            <option value="all">All topics</option>
+            {topicOptions.map((topic) => (
+              <option key={topic} value={topic}>
+                {topic}
+              </option>
+            ))}
+          </select>
         </div>
 
         {leetcodeSync ? (
