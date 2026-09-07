@@ -8,6 +8,7 @@ import {
   LastMinPrepQuestion,
   PrepStatus,
   emptyPrepProgress,
+  getBroadTopic,
   getPrepStats,
   getUniqueQuestionsFromCategories,
   getPrepQuestionUrl,
@@ -39,6 +40,8 @@ interface LastMinPrepPanelProps {
   icon?: ReactNode;
   showTags?: boolean;
   leetcodeSync?: LeetCodeSyncResult | null;
+  /** Collapse fine-grained patterns (e.g. "Tree-to-graph BFS") into broad topic buckets (e.g. "Graphs") for the topic filter. */
+  groupTopics?: boolean;
 }
 
 type LeetCodeFilter = 'all' | 'unsolved' | 'solved';
@@ -64,6 +67,7 @@ export function LastMinPrepPanel({
   icon,
   showTags = true,
   leetcodeSync,
+  groupTopics = false,
 }: LastMinPrepPanelProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(
     categories[0]?.id ?? null
@@ -86,12 +90,14 @@ export function LastMinPrepPanel({
   const uniqueTotal = uniqueQuestions.length;
   const patternById = useMemo(() => {
     const map = new Map<number, string>();
-    for (const q of uniqueQuestions) map.set(q.leetcodeId, q.pattern);
+    for (const q of uniqueQuestions) {
+      map.set(q.leetcodeId, groupTopics ? getBroadTopic(q.pattern) : q.pattern);
+    }
     return map;
-  }, [uniqueQuestions]);
+  }, [uniqueQuestions, groupTopics]);
   const topicOptions = useMemo(
-    () => Array.from(new Set(uniqueQuestions.map((q) => q.pattern))).sort((a, b) => a.localeCompare(b)),
-    [uniqueQuestions]
+    () => Array.from(new Set(patternById.values())).sort((a, b) => a.localeCompare(b)),
+    [patternById]
   );
   const progressMap = useMemo(() => progressMapFromRows(progress), [progress]);
   const stats = useMemo(

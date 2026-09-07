@@ -28,6 +28,40 @@ export interface LastMinPrepCategory {
   questions: LastMinPrepQuestion[];
 }
 
+/** Ordered rules: first regex that matches the pattern text wins. */
+const BROAD_TOPIC_RULES: [RegExp, string][] = [
+  [/\bdp\b|dynamic programming|knapsack|\blis\b|\blcs\b/i, 'DP'],
+  [/graph|dijkstra|bellman|topolog|\bdsu\b|union find|\bmst\b|bipartite|eulerian|hamiltonian/i, 'Graphs'],
+  [/\btree\b/i, 'Trees'],
+  [/backtracking/i, 'Backtracking'],
+  [/binary search/i, 'Binary Search'],
+  [/sliding window|\bwindow\b/i, 'Sliding Window'],
+  [/two pointers?/i, 'Two Pointers'],
+  [/\bstack\b/i, 'Stack'],
+  [/heap/i, 'Heap'],
+  [/queue|deque/i, 'Queue / Deque'],
+  [/\btrie\b/i, 'Trie'],
+  [/linked list/i, 'Linked List'],
+  [/\bbit|xor/i, 'Bit Manipulation'],
+  [/greedy/i, 'Greedy'],
+  [/design/i, 'Design'],
+  [/grid|matrix/i, 'Grid / Matrix'],
+  [/\bsort\b|sorting/i, 'Sorting'],
+  [/hash/i, 'Hashing'],
+  [/prefix sum|difference array/i, 'Prefix Sum'],
+  [/string|kmp|manacher|z algorithm|suffix|palindrome/i, 'String'],
+  [/math|number theory|combinatoric|geometry|probability|modular/i, 'Math'],
+];
+
+/** Collapses a fine-grained pattern (e.g. "Tree-to-graph BFS") into a broad topic bucket (e.g. "Graphs"). */
+export function getBroadTopic(pattern: string): string {
+  if (!pattern) return 'Other';
+  for (const [regex, topic] of BROAD_TOPIC_RULES) {
+    if (regex.test(pattern)) return topic;
+  }
+  return 'Other';
+}
+
 function q(
   leetcodeId: number,
   title: string,

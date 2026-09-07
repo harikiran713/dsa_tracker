@@ -984,6 +984,7 @@ export function DashboardNew() {
               icon={<Package className="w-5 h-5" style={{ color: '#F59E0B' }} strokeWidth={1.75} />}
               showTags={false}
               leetcodeSync={leetcodeSync}
+              groupTopics
             />
           )}
 
@@ -999,6 +1000,7 @@ export function DashboardNew() {
               icon={<PackageSearch className="w-5 h-5" style={{ color: '#8B5CF6' }} strokeWidth={1.75} />}
               showTags={false}
               leetcodeSync={leetcodeSync}
+              groupTopics
             />
           )}
 
@@ -1014,6 +1016,7 @@ export function DashboardNew() {
               icon={<Globe className="w-5 h-5" style={{ color: '#4285F4' }} strokeWidth={1.75} />}
               showTags={false}
               leetcodeSync={leetcodeSync}
+              groupTopics
             />
           )}
 
@@ -1029,6 +1032,7 @@ export function DashboardNew() {
               icon={<Building2 className="w-5 h-5" style={{ color: '#22C55E' }} strokeWidth={1.75} />}
               showTags={false}
               leetcodeSync={leetcodeSync}
+              groupTopics
             />
           )}
 
