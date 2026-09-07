@@ -126,6 +126,7 @@ import {
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
 type FilterLeetCode   = 'all' | 'unsolved' | 'solved';
+type FilterTopic      = string;
 type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'allcompany' | 'design' | 'goalnotes' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
@@ -246,6 +247,7 @@ export function DashboardNew() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<FilterDifficulty>('all');
   const [filterLeetCode, setFilterLeetCode] = useState<FilterLeetCode>('all');
+  const [filterTopic, setFilterTopic] = useState<FilterTopic>('all');
   const [leetcodeSync, setLeetcodeSync] = useState<LeetCodeSyncResult | null>(null);
   const [activeTab, setActiveTab] = useState<MainTab>('problems');
   const [completionEvents, setCompletionEvents] = useState<CompletionEvent[]>([]);
@@ -754,10 +756,16 @@ export function DashboardNew() {
     [leetcodeSync]
   );
 
+  const topicOptions = useMemo(
+    () => Array.from(new Set(questionsWithProgress.map((q) => q.pattern))).sort((a, b) => a.localeCompare(b)),
+    [questionsWithProgress]
+  );
+
   const filtered = useMemo(() => {
     let result = questionsWithProgress;
     if (filterStatus !== 'all') result = result.filter((q) => q.status === filterStatus);
     if (filterDifficulty !== 'all') result = result.filter((q) => q.phase === filterDifficulty);
+    if (filterTopic !== 'all') result = result.filter((q) => q.pattern === filterTopic);
     if (filterLeetCode !== 'all') {
       result = result.filter((q) => {
         const slug = slugFromLeetCodeUrl(q.leetcodeUrl);
@@ -775,7 +783,7 @@ export function DashboardNew() {
       );
     }
     return result;
-  }, [questionsWithProgress, filterStatus, filterDifficulty, filterLeetCode, leetcodeSolvedSlugs, debouncedSearch]);
+  }, [questionsWithProgress, filterStatus, filterDifficulty, filterTopic, filterLeetCode, leetcodeSolvedSlugs, debouncedSearch]);
 
   const mixedFiltered = useMemo(
     () => mixQuestionsByDifficulty(filtered),
@@ -1188,6 +1196,24 @@ export function DashboardNew() {
                         Hard
                       </button>
                     </div>
+                  </div>
+
+                  <div className="problems-filter-group">
+                    <span className="problems-filter-label">Topic</span>
+                    <select
+                      value={filterTopic}
+                      onChange={(e) => setFilterTopic(e.target.value)}
+                      className="glass-input text-sm py-1.5 px-3 rounded-full"
+                      style={{ maxWidth: 220 }}
+                      aria-label="Filter by topic"
+                    >
+                      <option value="all">All topics</option>
+                      {topicOptions.map((topic) => (
+                        <option key={topic} value={topic}>
+                          {topic}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="problems-filter-group">

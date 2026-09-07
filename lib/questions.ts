@@ -1,3 +1,14 @@
+import {
+  CP_LEARNING_CATEGORIES,
+  LAST_MIN_PREP_CATEGORIES,
+  getBroadTopic,
+  getQuestionsFromCategories,
+} from './last-min-prep';
+import { AMAZON_PREP_CATEGORIES } from './amazon-prep';
+import { AMAZON_TWEAK_CATEGORIES } from './amazon-tweak';
+import { GOOGLE_PREP_CATEGORIES } from './google-prep';
+import { DESIGN_PREP_CATEGORIES } from './design-prep';
+
 export interface Question {
   id: string;
   number: number;
@@ -6,6 +17,263 @@ export interface Question {
   status: 'todo' | 'done' | 'revise';
   notes: string;
   leetcodeUrl?: string;
+  /** Broad topic bucket (e.g. "Graphs", "DP", "Stack") inferred from curated prep data / title. */
+  pattern: string;
+}
+
+function normalizeTitle(title: string): string {
+  return title.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Title -> broad topic, built from every curated prep list that already tags a technique. */
+const TITLE_TOPIC_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  const add = (title: string, topic: string) => {
+    const key = normalizeTitle(title);
+    if (!map[key]) map[key] = topic;
+  };
+  for (const q of getQuestionsFromCategories(LAST_MIN_PREP_CATEGORIES)) add(q.title, getBroadTopic(q.pattern));
+  for (const q of getQuestionsFromCategories(CP_LEARNING_CATEGORIES)) add(q.title, getBroadTopic(q.pattern));
+  for (const q of getQuestionsFromCategories(AMAZON_PREP_CATEGORIES)) add(q.title, getBroadTopic(q.pattern));
+  for (const q of getQuestionsFromCategories(AMAZON_TWEAK_CATEGORIES)) add(q.title, getBroadTopic(q.pattern));
+  for (const q of getQuestionsFromCategories(GOOGLE_PREP_CATEGORIES)) add(q.title, getBroadTopic(q.pattern));
+  for (const q of getQuestionsFromCategories(DESIGN_PREP_CATEGORIES)) add(q.title, 'Design');
+  return map;
+})();
+
+/** Best-effort keyword fallback for titles absent from every curated prep list above. */
+function inferTopicFromTitle(title: string): string {
+  const t = title.toLowerCase();
+  const rules: [RegExp, string][] = [
+    [/\btrie\b/, 'Trie'],
+    [/linked list/, 'Linked List'],
+    [/\bheap\b|kth (largest|smallest)|top k frequent|median/, 'Heap'],
+    [/\bstack\b/, 'Stack'],
+    [/\bqueue\b|deque/, 'Queue / Deque'],
+    [
+      /\btree\b|\bbst\b|binary search tree|ancestor|\bgraph\b|island|province|connected|course schedule|bipartite|itinerary|critical connections|topological|shortest path|dijkstra|network delay|eulerian|redundant connection|valid path|reachable/,
+      'Graphs',
+    ],
+    [/\bmatrix\b|\bgrid\b/, 'Grid / Matrix'],
+    [/permutations?|combinations?|subsets?|n-queens|word search|letter combinations|backtrack/, 'Backtracking'],
+    [/binary search|search in rotated|search insert|peak index|kth missing|guess number|find minimum in rotated/, 'Binary Search'],
+    [/sliding window|longest substring|minimum window|max consecutive/, 'Sliding Window'],
+    [/two sum ii|3sum|4sum|container with most water|trapping rain water|two pointers/, 'Two Pointers'],
+    [/interval|meeting rooms/, 'Intervals'],
+    [/\bxor\b|\bbits?\b/, 'Bit Manipulation'],
+    [
+      /subsequence|partition|knapsack|coin change|climbing stairs|house robber|distinct subsequences|edit distance|palindromic partition|\bdp\b/,
+      'DP',
+    ],
+    [/greedy|jump game|gas station|task scheduler/, 'Greedy'],
+    [/\bdesign\b/, 'Design'],
+    [/\bsort\b|sorting/, 'Sorting'],
+    [/anagram|duplicate|\bhash/, 'Hashing'],
+    [/prefix sum|subarray sum|difference array/, 'Prefix Sum'],
+    [/palindrome|substring|\bstring\b/, 'String'],
+    [/\bmath\b|divisors|\bgcd\b|prime|probability/, 'Math'],
+    [/subarray|kadane/, 'Arrays'],
+  ];
+  for (const [regex, topic] of rules) {
+    if (regex.test(t)) return topic;
+  }
+  return 'Other';
+}
+
+/**
+ * Manual overrides for titles that are unique to this curated list (not present in any
+ * other prep list) and too obscurely-named for the keyword fallback to classify correctly.
+ */
+const TOPIC_OVERRIDES: [string, string][] = [
+  ['Minimum Genetic Mutation', 'Graphs'],
+  ['Nearest Exit from Entrance in Maze', 'Graphs'],
+  ['Find Champion II', 'Graphs'],
+  ['Maximum Ice Cream Bars', 'Greedy'],
+  ['Maximum 69 Number', 'Greedy'],
+  ['Broken Calculator', 'Greedy'],
+  ['Destroying Asteroids', 'Greedy'],
+  ['Maximum Bags With Full Capacity of Rocks', 'Greedy'],
+  ['Maximum Number of Integers to Choose From a Range', 'Greedy'],
+  ['Maximum Distance in Arrays', 'Arrays'],
+  ['Maximum Distance Between a Pair of Values', 'Two Pointers'],
+  ['Minimize Maximum Pair Sum in Array', 'Greedy'],
+  ['Most Beautiful Item for Each Query', 'Binary Search'],
+  ['Maximum Candies Allocated to K Children', 'Binary Search'],
+  ['Number of Houses at a Certain Distance I', 'Graphs'],
+  ['Shortest Distance After Road Addition Queries I', 'Graphs'],
+  ['Delete Nodes and Return Forest', 'Graphs'],
+  ['Sum Root to Leaf Numbers', 'Graphs'],
+  ['Flip Equivalent Binary Trees', 'Graphs'],
+  ['Number of Good Leaf Nodes Pairs', 'Graphs'],
+  ['Reorder Routes to Make All Paths Lead to the City Zero', 'Graphs'],
+  ['Bus Routes', 'Graphs'],
+  ['Maximum Total Importance of Roads', 'Graphs'],
+  ['Find Closest Node to Given Two Nodes', 'Graphs'],
+  ['Maximum Employees to Be Invited to a Meeting', 'Graphs'],
+  ['Count the Number of Complete Components', 'Graphs'],
+  ['Divide Nodes Into the Maximum Number of Groups', 'Graphs'],
+  ['Freedom Trail', 'DP'],
+  ['Maximum Number of Tasks You Can Assign', 'Binary Search'],
+  ['Maximum Running Time of Computers', 'Binary Search'],
+  ['Successful Pairs of Spells and Potions', 'Binary Search'],
+  ['Count the Number of Fair Pairs', 'Binary Search'],
+  ['Maximum Fruits Harvested After at Most K Steps', 'Sliding Window'],
+  ['Minimize the Maximum Difference of Pairs', 'Binary Search'],
+  ['Number of Flowers in Full Bloom', 'Binary Search'],
+  ['Minimum Time to Repair Cars', 'Binary Search'],
+  ['Minimum Time to Complete Trips', 'Binary Search'],
+  ['Magnetic Force Between Balls', 'Binary Search'],
+  ['Minimum Limit of Balls in a Bag', 'Binary Search'],
+  ['Minimum Cost to Make Array Equal', 'Binary Search'],
+  ['Maximum Value at a Given Index in a Bounded Array', 'Binary Search'],
+  ['Most Profit Assigning Work', 'Binary Search'],
+  ['Avoid Flood in The City', 'Greedy'],
+  ['Maximum Width Ramp', 'Stack'],
+  ['Furthest Building You Can Reach', 'Heap'],
+  ['Minimum Increment to Make Array Unique', 'Greedy'],
+  ['Eliminate Maximum Number of Monsters', 'Greedy'],
+  ['Maximum Average Pass Ratio', 'Heap'],
+  ['Rearranging Fruits', 'Greedy'],
+  ['Greatest Sum Divisible by Three', 'DP'],
+  ['Minimum Domino Rotations For Equal Row', 'Greedy'],
+  ['Patching Array', 'Greedy'],
+  ['Remove Colored Pieces if Both Neighbors are the Same Color', 'Greedy'],
+  ['Minimum Time to Make Rope Colorful', 'Greedy'],
+  ['Dota2 Senate', 'Queue / Deque'],
+  ['Earliest Possible Day of Full Bloom', 'Greedy'],
+  ['Minimum Rounds to Complete All Tasks', 'Greedy'],
+  ['Maximum Number of Points with Cost', 'DP'],
+  ['Find the Longest Valid Obstacle Course at Each Position', 'Binary Search'],
+  ['Solving Questions With Brainpower', 'DP'],
+  ['Domino and Tromino Tiling', 'DP'],
+  ['Number of Music Playlists', 'DP'],
+  ['Restore The Array', 'DP'],
+  ['Predict the Winner', 'DP'],
+  ['Stone Game II', 'DP'],
+  ['Stone Game III', 'DP'],
+  ['Soup Servings', 'DP'],
+  ['Minimum Number of Taps to Open to Water a Garden', 'Greedy'],
+  ['Count All Possible Routes', 'DP'],
+  ['Painting the Walls', 'DP'],
+  ['Filling Bookcase Shelves', 'DP'],
+  ['Tallest Billboard', 'DP'],
+  ['Strange Printer', 'DP'],
+  ['Minimum Cost to Cut a Stick', 'DP'],
+  ['Minimum Score Triangulation of Polygon', 'DP'],
+  ['Make Array Strictly Increasing', 'DP'],
+  ['Minimum Difficulty of a Job Schedule', 'DP'],
+  ['Maximum Value of K Coins From Piles', 'DP'],
+  ['Reducing Dishes', 'DP'],
+  ['Number of Ways of Cutting a Pizza', 'DP'],
+  ['K Inverse Pairs Array', 'DP'],
+  ['Concatenated Words', 'Trie'],
+  ['Smallest Sufficient Team', 'DP'],
+  ['All Possible Full Binary Trees', 'Graphs'],
+  ['Find All Possible Stable Binary Arrays I', 'DP'],
+  ['Find All Possible Stable Binary Arrays II', 'DP'],
+  ['Delete Columns to Make Sorted III', 'DP'],
+  ['Count Digit Groupings of a Number', 'DP'],
+  ['Ways to Express an Integer as Sum of Powers', 'DP'],
+  ['Maximum Amount of Money Robot Can Earn', 'Grid / Matrix'],
+  ['Minimum Distance to Type a Word Using Two Fingers', 'DP'],
+  ['Maximum Total Damage With Spell Casting', 'DP'],
+  ['Maximum Array Sum', 'DP'],
+  ['Length of Longest V-Shaped Diagonal Segment', 'Grid / Matrix'],
+  ['Count Ways to Build Good Strings', 'DP'],
+  ['Dice Rolls With Target Sum', 'DP'],
+  ['Minimum Sideway Jumps', 'DP'],
+  ['Knight Dialer', 'DP'],
+  ['Minimize the Difference Between Target and Chosen Elements', 'DP'],
+  ['Longest Path With Different Adjacent Characters', 'Graphs'],
+  ['Fraction to Recurring Decimal', 'Math'],
+  ['Minimum Operations to Make the Integer Zero', 'Math'],
+  ['Count Good Numbers', 'Math'],
+  ['Closest Prime Numbers in Range', 'Math'],
+  ['Distribute Candies Among Children II', 'Math'],
+  ['Number of Good Paths', 'Graphs'],
+  ['Checking Existence of Edge Length Limited Paths', 'Graphs'],
+  ['Second Minimum Time to Reach Destination', 'Graphs'],
+  ['Maximize the Minimum Powered City', 'Binary Search'],
+  ['Last Day Where You Can Still Cross', 'Binary Search'],
+  ['Apply Operations to Maximize Frequency Score', 'Binary Search'],
+  ['Separate Squares I', 'Binary Search'],
+  ['Maximum Building Height', 'Greedy'],
+  ['Set Intersection Size At Least Two', 'Greedy'],
+  ['Find Maximum Sum of Node Values', 'Bit Manipulation'],
+  ['Maximum Manhattan Distance After K Changes', 'Math'],
+  ['Reschedule Meetings for Maximum Free Time II', 'Intervals'],
+  ['Maximize Happiness of Children', 'Greedy'],
+  ['Earliest Second to Mark Indices I', 'Binary Search'],
+  ['Maximum Number of K-Divisible Components', 'Graphs'],
+  ['Minimize Hamming Distance After Swap Operations', 'Graphs'],
+  ['Minimum Score Path Between Two Cities', 'Graphs'],
+  ['Maximum Candies You Can Get from Boxes', 'Graphs'],
+  ['Find All People With Secret', 'Graphs'],
+  ['Minimum Initial Energy to Finish Tasks', 'Greedy'],
+  ['Maximum Number of Operations to Move Ones to the End', 'Arrays'],
+  ['Minimum Equal Sum of Two Arrays After Replacing Zeros', 'Math'],
+  ['Minimum Number of People to Teach', 'Greedy'],
+  ['Minimum Number of Operations to Make Array Empty', 'Hashing'],
+  ['Maximum Element After Decreasing and Rearranging', 'Greedy'],
+  ['Find Polygon With the Largest Perimeter', 'Greedy'],
+  ['Special Array With X Elements Greater Than or Equal X', 'Binary Search'],
+  ['Find in Mountain Array', 'Binary Search'],
+  ['Maximize Score After N Operations', 'DP'],
+  ['Maximum Points After Collecting Coins From All Nodes', 'Graphs'],
+  ['Minimum Total Distance Traveled', 'DP'],
+  ['Minimum Sum of Values by Dividing Array', 'DP'],
+  ['Best Time to Buy and Sell Stock V', 'DP'],
+  ['Minimum Cost Path with Teleportations', 'Graphs'],
+  ['Maximum Number of Moves to Kill All Pawns', 'Graphs'],
+  ['Minimum Array Sum', 'DP'],
+  ['Word Ladder II', 'Graphs'],
+  ['Alien Dictionary', 'Graphs'],
+  ['The Maze III', 'Graphs'],
+  ['Cracking the Safe', 'Graphs'],
+  ['Sliding Puzzle', 'Graphs'],
+  ['Number of Restricted Paths From First to Last Node', 'Graphs'],
+  ['Minimum Weighted Subgraph With the Required Paths', 'Graphs'],
+  ['Edit Distance', 'DP'],
+  ['Wildcard Matching', 'DP'],
+  ['Regular Expression Matching', 'DP'],
+  ['Minimum Cost to Merge Stones', 'DP'],
+  ['Remove Boxes', 'DP'],
+  ['Cherry Pickup', 'Grid / Matrix'],
+  ['Frog Jump', 'DP'],
+  ['Best Time to Buy and Sell Stock IV', 'DP'],
+  ['Minimum Number of Operations to Make Array Continuous', 'Sorting'],
+  ['Maximum Number of Visible Points', 'Sorting'],
+  ['Maximum Number of Robots Within Budget', 'Queue / Deque'],
+  ['Maximum Difference Between Even and Odd Frequency II', 'Hashing'],
+  ['Bricks Falling When Hit', 'Graphs'],
+  ['Contain Virus', 'Graphs'],
+  ['Minimum Cost to Reach Destination in Time', 'Graphs'],
+  ['Checking Existence of Edge Length Limited Paths II', 'Graphs'],
+  ['Cat and Mouse', 'Graphs'],
+  ['Best Time to Buy and Sell Stock III', 'DP'],
+  ['Form Largest Integer With Digits That Add up to Target', 'DP'],
+  ['Number of Digit One', 'Math'],
+  ['Count of Integers', 'DP'],
+  ['Delivering Boxes from Storage to Ports', 'DP'],
+  ['Number of Ways to Reorder Array to Get Same BST', 'Math'],
+  ['Count the Number of Ideal Arrays', 'Math'],
+  ['Apply Operations to Maximize Score', 'Math'],
+  ['Sorted GCD Pair Queries', 'Math'],
+  ['Total Characters After Transformations II', 'Math'],
+  ['Find the Count of Good Integers', 'Math'],
+  ['Poor Pigs', 'Math'],
+];
+// Overrides win outright: some cross-list pattern text (e.g. "Edit distance", lacking the
+// literal word "DP") fails getBroadTopic's classification, so a hand-checked override here
+// must replace it rather than only filling gaps.
+for (const [title, topic] of TOPIC_OVERRIDES) {
+  TITLE_TOPIC_MAP[normalizeTitle(title)] = topic;
+}
+
+function getQuestionTopic(title: string): string {
+  const key = normalizeTitle(title);
+  const mapped = TITLE_TOPIC_MAP[key];
+  return mapped ?? inferTopicFromTitle(title);
 }
 
 // Slugs that differ from standard alphanumeric transformations
@@ -440,6 +708,7 @@ export function initializeQuestions(): Question[] {
       status: 'todo',
       notes: '',
       leetcodeUrl: getLeetcodeUrl(title),
+      pattern: getQuestionTopic(title),
     });
     id++;
   });
@@ -453,6 +722,7 @@ export function initializeQuestions(): Question[] {
       status: 'todo',
       notes: '',
       leetcodeUrl: getLeetcodeUrl(title),
+      pattern: getQuestionTopic(title),
     });
     id++;
   });
@@ -466,6 +736,7 @@ export function initializeQuestions(): Question[] {
       status: 'todo',
       notes: '',
       leetcodeUrl: getLeetcodeUrl(title),
+      pattern: getQuestionTopic(title),
     });
     id++;
   });
