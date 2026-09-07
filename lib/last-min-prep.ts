@@ -30,16 +30,18 @@ export interface LastMinPrepCategory {
 
 /**
  * Ordered rules: first regex that matches the pattern text wins.
- * Trees are folded into "Graphs" (a tree is just a graph) so BFS/DFS-flavored
- * patterns — tree or not — all collapse into one bucket instead of splintering.
+ * Trees are their own bucket, checked before Graphs, so any pattern mentioning
+ * "tree"/"BST"/LCA lands under Trees even if it also says BFS/DFS — the plain
+ * (non-tree) traversal patterns fall through to Graphs.
  * Every rule here maps to a conceptual topic, not the literal algorithm-technique
  * wording, so near-synonyms (e.g. "Topo" vs "Topological", "hash" vs "frequency
  * map") land in the same bucket instead of spilling into "Other".
  */
 const BROAD_TOPIC_RULES: [RegExp, string][] = [
   [/\bdp\b|dynamic programming|knapsack|\blis\b|\blcs\b/i, 'DP'],
+  [/\btree\b|\bbst\b|binary search tree|lowest common ancestor|\blca\b/i, 'Trees'],
   [
-    /graph|dijkstra|bellman|\btopo\b|topolog|\bdsu\b|union find|\bmst\b|bipartit|eulerian|hamiltonian|\bbfs\b|\bdfs\b|\btree\b|\bbst\b|traversal|shortest path|lowest common ancestor|\blca\b|cycle detection/i,
+    /graph|dijkstra|bellman|\btopo\b|topolog|\bdsu\b|union find|\bmst\b|bipartit|eulerian|hamiltonian|\bbfs\b|\bdfs\b|traversal|shortest path|cycle detection/i,
     'Graphs',
   ],
   [/design/i, 'Design'],
