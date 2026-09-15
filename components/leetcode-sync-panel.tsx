@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   LEETCODE_SYNC_SCRIPT,
   LeetCodeSyncResult,
@@ -62,6 +62,19 @@ export function LeetCodeSyncPanel({ userId, sync, onSyncChange }: LeetCodeSyncPa
     onSyncChange(null);
     setExpanded(true);
   };
+
+  const pastedPreview = useMemo(() => {
+    if (!pasted.trim()) return '';
+    try {
+      const parsed = JSON.parse(pasted.trim());
+      if (Array.isArray(parsed?.solvedIds)) {
+        return `Looks good — ${parsed.solvedIds.length} solved problems detected.`;
+      }
+      return "That's valid JSON, but not the sync data — did you paste the right thing?";
+    } catch {
+      return "That's not JSON — make sure you pasted the script's full output, not something else.";
+    }
+  }, [pasted]);
 
   return (
     <div className="glass-panel p-4 mb-4">
@@ -162,6 +175,14 @@ export function LeetCodeSyncPanel({ userId, sync, onSyncChange }: LeetCodeSyncPa
           </div>
           {error && (
             <p className="text-xs mt-2" style={{ color: '#FCA5A5' }}>{error}</p>
+          )}
+          {!error && pastedPreview && (
+            <p
+              className="text-xs mt-2"
+              style={{ color: pastedPreview.startsWith('Looks good') ? '#4ADE80' : '#FBBF24' }}
+            >
+              {pastedPreview}
+            </p>
           )}
         </div>
       )}

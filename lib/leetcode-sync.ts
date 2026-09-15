@@ -45,28 +45,40 @@ export function slugFromLeetCodeUrl(url?: string): string | null {
  * straight to the clipboard so it can be pasted back into the sync box.
  */
 export const LEETCODE_SYNC_SCRIPT = `(async () => {
-  const res = await fetch('/api/problems/all/', { credentials: 'include' });
-  const data = await res.json();
-  if (!data.user_name) {
-    alert('Not logged in to LeetCode in this tab — log in first, then re-run this script.');
-    return;
-  }
-  const pairs = Array.isArray(data.stat_status_pairs) ? data.stat_status_pairs : [];
-  const solvedIds = [];
-  const solvedSlugs = [];
-  for (const p of pairs) {
-    if (p.status !== 'ac') continue;
-    const id = p.stat?.frontend_question_id ?? p.stat?.question_id;
-    if (typeof id === 'number') solvedIds.push(id);
-    if (typeof p.stat?.question__title_slug === 'string') solvedSlugs.push(p.stat.question__title_slug);
-  }
-  const result = { solvedIds, solvedSlugs, totalSolved: solvedIds.length, syncedAt: new Date().toISOString() };
-  const json = JSON.stringify(result);
   try {
-    await navigator.clipboard.writeText(json);
-    alert('Copied ' + solvedIds.length + ' solved problems to your clipboard. Go back to PrepTracker and paste it in.');
+    if (!location.hostname.endsWith('leetcode.com')) {
+      alert('Run this on leetcode.com, not here.');
+      return;
+    }
+    const res = await fetch('/api/problems/all/', { credentials: 'include' });
+    if (!res.ok) {
+      alert('LeetCode returned an error (status ' + res.status + '). Make sure you are logged in on this tab, then try again.');
+      return;
+    }
+    const data = await res.json();
+    if (!data.user_name) {
+      alert('Not logged in to LeetCode in this tab — log in first, then re-run this script.');
+      return;
+    }
+    const pairs = Array.isArray(data.stat_status_pairs) ? data.stat_status_pairs : [];
+    const solvedIds = [];
+    const solvedSlugs = [];
+    for (const p of pairs) {
+      if (p.status !== 'ac') continue;
+      const id = p.stat?.frontend_question_id ?? p.stat?.question_id;
+      if (typeof id === 'number') solvedIds.push(id);
+      if (typeof p.stat?.question__title_slug === 'string') solvedSlugs.push(p.stat.question__title_slug);
+    }
+    const result = { solvedIds, solvedSlugs, totalSolved: solvedIds.length, syncedAt: new Date().toISOString() };
+    const json = JSON.stringify(result);
+    try {
+      await navigator.clipboard.writeText(json);
+      alert('Copied ' + solvedIds.length + ' solved problems to your clipboard. Go back to PrepTracker and paste it in.');
+    } catch (e) {
+      window.prompt('Clipboard copy was blocked by the browser. Press Ctrl+A then Ctrl+C to copy this, then paste it into PrepTracker:', json);
+    }
   } catch (e) {
-    window.prompt('Clipboard copy was blocked by the browser. Press Ctrl+A then Ctrl+C to copy this, then paste it into PrepTracker:', json);
+    alert('Sync script failed: ' + (e && e.message ? e.message : e) + '. Make sure you are on leetcode.com, logged in, and try again.');
   }
 })();`;
 
