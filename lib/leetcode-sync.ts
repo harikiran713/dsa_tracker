@@ -62,8 +62,12 @@ export const LEETCODE_SYNC_SCRIPT = `(async () => {
   }
   const result = { solvedIds, solvedSlugs, totalSolved: solvedIds.length, syncedAt: new Date().toISOString() };
   const json = JSON.stringify(result);
-  await navigator.clipboard.writeText(json);
-  alert('Copied ' + solvedIds.length + ' solved problems to your clipboard. Go back to PrepTracker and paste it in.');
+  try {
+    await navigator.clipboard.writeText(json);
+    alert('Copied ' + solvedIds.length + ' solved problems to your clipboard. Go back to PrepTracker and paste it in.');
+  } catch (e) {
+    window.prompt('Clipboard copy was blocked by the browser. Press Ctrl+A then Ctrl+C to copy this, then paste it into PrepTracker:', json);
+  }
 })();`;
 
 function isValidSyncPayload(value: unknown): value is LeetCodeSyncResult {
@@ -83,7 +87,10 @@ export function parsePastedSyncPayload(raw: string): LeetCodeSyncResult {
   try {
     parsed = JSON.parse(raw.trim());
   } catch {
-    throw new Error("That doesn't look like valid data — paste the full output the script copied, unedited.");
+    throw new Error(
+      "That doesn't look like valid data — the clipboard copy may have been blocked by your browser. Re-run the script; " +
+        "if it shows a text box instead of an alert, copy the text from that box and paste it here."
+    );
   }
 
   if (!isValidSyncPayload(parsed)) {
