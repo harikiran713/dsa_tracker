@@ -38,50 +38,6 @@ export function slugFromLeetCodeUrl(url?: string): string | null {
   return match ? match[1] : null;
 }
 
-/**
- * Runs entirely in the user's own browser, on the leetcode.com origin, using
- * their already-logged-in session — no cookie ever has to be located or
- * copied, and no session token ever reaches our server. It copies the result
- * straight to the clipboard so it can be pasted back into the sync box.
- */
-export const LEETCODE_SYNC_SCRIPT = `(async () => {
-  try {
-    if (!location.hostname.endsWith('leetcode.com')) {
-      alert('Run this on leetcode.com, not here.');
-      return;
-    }
-    const res = await fetch('/api/problems/all/', { credentials: 'include' });
-    if (!res.ok) {
-      alert('LeetCode returned an error (status ' + res.status + '). Make sure you are logged in on this tab, then try again.');
-      return;
-    }
-    const data = await res.json();
-    if (!data.user_name) {
-      alert('Not logged in to LeetCode in this tab — log in first, then re-run this script.');
-      return;
-    }
-    const pairs = Array.isArray(data.stat_status_pairs) ? data.stat_status_pairs : [];
-    const solvedIds = [];
-    const solvedSlugs = [];
-    for (const p of pairs) {
-      if (p.status !== 'ac') continue;
-      const id = p.stat?.frontend_question_id ?? p.stat?.question_id;
-      if (typeof id === 'number') solvedIds.push(id);
-      if (typeof p.stat?.question__title_slug === 'string') solvedSlugs.push(p.stat.question__title_slug);
-    }
-    const result = { solvedIds, solvedSlugs, totalSolved: solvedIds.length, syncedAt: new Date().toISOString() };
-    const json = JSON.stringify(result);
-    try {
-      await navigator.clipboard.writeText(json);
-      alert('Copied ' + solvedIds.length + ' solved problems to your clipboard. Go back to PrepTracker and paste it in.');
-    } catch (e) {
-      window.prompt('Clipboard copy was blocked by the browser. Press Ctrl+A then Ctrl+C to copy this, then paste it into PrepTracker:', json);
-    }
-  } catch (e) {
-    alert('Sync script failed: ' + (e && e.message ? e.message : e) + '. Make sure you are on leetcode.com, logged in, and try again.');
-  }
-})();`;
-
 function isValidSyncPayload(value: unknown): value is LeetCodeSyncResult {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
@@ -93,26 +49,32 @@ function isValidSyncPayload(value: unknown): value is LeetCodeSyncResult {
   );
 }
 
-/** Parses the JSON a user pastes back after running {@link LEETCODE_SYNC_SCRIPT}. */
-export function parsePastedSyncPayload(raw: string): LeetCodeSyncResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.trim());
-  } catch {
-    throw new Error(
-      "That doesn't look like valid data — the clipboard copy may have been blocked by your browser. Re-run the script; " +
-        "if it shows a text box instead of an alert, copy the text from that box and paste it here."
-    );
+/**
+ * Sends the pasted LEETCODE_SESSION cookie value to our server, which uses it
+ * to fetch the solved-problems list from LeetCode on the user's behalf. The
+ * token itself is never stored — only the derived solved-id/slug list is kept.
+ */
+export async function syncLeetCodeSession(sessionToken: string): Promise<LeetCodeSyncResult> {
+  const res = await fetch('/api/leetcode-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionToken }),
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok || !data) {
+    throw new Error((data && data.error) || `Sync failed (status ${res.status}).`);
   }
 
-  if (!isValidSyncPayload(parsed)) {
-    throw new Error("That doesn't look like valid sync data — make sure you copied the full script output.");
+  if (!isValidSyncPayload(data)) {
+    throw new Error('LeetCode returned unexpected data — try again.');
   }
 
   return {
-    solvedIds: parsed.solvedIds,
-    solvedSlugs: parsed.solvedSlugs,
-    totalSolved: parsed.solvedIds.length,
+    solvedIds: data.solvedIds,
+    solvedSlugs: data.solvedSlugs,
+    totalSolved: data.solvedIds.length,
     syncedAt: new Date().toISOString(),
   };
 }
