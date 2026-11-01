@@ -666,6 +666,90 @@ export function getUniqueQuestionsFromCategories(
   return Array.from(map.values());
 }
 
+function mulberry32(seed: number): () => number {
+  let state = seed | 0;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function seededShuffle<T>(items: T[], rng: () => number): T[] {
+  const pool = [...items];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
+}
+
+/**
+ * Deterministically picks `count` questions for a given day — same picks for
+ * everyone all day, a different set once the date rolls over. Exactly one of
+ * the picks is a Hard question (when one is available), the rest are drawn
+ * from the remaining (non-Hard) questions, and every pick comes from a
+ * different broad topic (falling back to repeats only if the pool can't
+ * cover `count` distinct topics).
+ */
+export function getDailyPicks(
+  questions: LastMinPrepQuestion[],
+  count: number,
+  dateKey: string = new Date().toISOString().slice(0, 10)
+): LastMinPrepQuestion[] {
+  if (questions.length === 0) return [];
+  const rng = mulberry32(hashString(dateKey));
+
+  const hards = questions.filter((q) => q.difficulty === 'Hard');
+  const others = questions.filter((q) => q.difficulty !== 'Hard');
+
+  const picks: LastMinPrepQuestion[] = [];
+  const usedTopics = new Set<string>();
+
+  const takeDistinctTopics = (pool: LastMinPrepQuestion[], maxNew: number) => {
+    let added = 0;
+    for (const q of pool) {
+      if (added >= maxNew || picks.length >= count) break;
+      const topic = getBroadTopic(q.pattern);
+      if (usedTopics.has(topic)) continue;
+      usedTopics.add(topic);
+      picks.push(q);
+      added++;
+    }
+  };
+
+  if (hards.length > 0) {
+    takeDistinctTopics(seededShuffle(hards, rng), 1);
+  }
+
+  const otherPool = hards.length > 0 ? others : questions;
+  takeDistinctTopics(seededShuffle(otherPool, rng), count - picks.length);
+
+  // Not enough distinct topics to fill every slot — top up with repeats rather
+  // than returning fewer than `count` picks.
+  if (picks.length < count) {
+    const pickedIds = new Set(picks.map((q) => q.leetcodeId));
+    for (const q of seededShuffle(questions, rng)) {
+      if (picks.length >= count) break;
+      if (pickedIds.has(q.leetcodeId)) continue;
+      pickedIds.add(q.leetcodeId);
+      picks.push(q);
+    }
+  }
+
+  return seededShuffle(picks, rng);
+}
+
 export function getAllLastMinPrepQuestions(): LastMinPrepQuestion[] {
   return getQuestionsFromCategories(LAST_MIN_PREP_CATEGORIES);
 }

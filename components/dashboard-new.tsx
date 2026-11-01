@@ -1041,6 +1041,7 @@ export function DashboardNew() {
               showTags={false}
               leetcodeSync={leetcodeSync}
               groupTopics
+              showDailyPicks
             />
           )}
 

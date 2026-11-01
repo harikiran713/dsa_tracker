@@ -9,6 +9,7 @@ import {
   PrepStatus,
   emptyPrepProgress,
   getBroadTopic,
+  getDailyPicks,
   getPrepStats,
   getUniqueQuestionsFromCategories,
   getPrepQuestionUrl,
@@ -20,6 +21,7 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  Dices,
   ExternalLink,
   MessageSquare,
   Rocket,
@@ -42,6 +44,8 @@ interface LastMinPrepPanelProps {
   leetcodeSync?: LeetCodeSyncResult | null;
   /** Collapse fine-grained patterns (e.g. "Tree-to-graph BFS") into broad topic buckets (e.g. "Graphs") for the topic filter. */
   groupTopics?: boolean;
+  /** Surface 4 deterministically-random picks for today at the top of the panel. */
+  showDailyPicks?: boolean;
 }
 
 type LeetCodeFilter = 'all' | 'unsolved' | 'solved';
@@ -68,6 +72,7 @@ export function LastMinPrepPanel({
   showTags = true,
   leetcodeSync,
   groupTopics = false,
+  showDailyPicks = false,
 }: LastMinPrepPanelProps) {
   const [openCategory, setOpenCategory] = useState<string | null>(
     categories[0]?.id ?? null
@@ -86,6 +91,10 @@ export function LastMinPrepPanel({
   const uniqueQuestions = useMemo(
     () => getUniqueQuestionsFromCategories(categories),
     [categories]
+  );
+  const dailyPicks = useMemo(
+    () => (showDailyPicks ? getDailyPicks(uniqueQuestions, 4) : []),
+    [showDailyPicks, uniqueQuestions]
   );
   const uniqueTotal = uniqueQuestions.length;
   const patternById = useMemo(() => {
@@ -170,6 +179,80 @@ export function LastMinPrepPanel({
 
   return (
     <div className="last-min-prep">
+      {showDailyPicks && dailyPicks.length > 0 && (
+        <div className="glass-panel p-5 mb-6" style={{ border: `1px solid ${accent}47` }}>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: `${accent}26`, border: `1px solid ${accent}47` }}
+            >
+              <Dices className="w-4 h-4" style={{ color: accent }} strokeWidth={1.75} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white text-sm">Today's 4 picks</h3>
+              <p className="text-xs" style={{ color: '#64748B' }}>
+                A fresh random set every day — same picks all day, new ones tomorrow.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {dailyPicks.map((q) => {
+              const status = getStatus(q.leetcodeId);
+              return (
+                <div
+                  key={`daily-${q.leetcodeId}`}
+                  className={`last-min-item ${status === 'done' ? 'last-min-item--done' : ''} ${status === 'revise' ? 'last-min-item--revise' : ''}`}
+                  style={{ margin: 0 }}
+                >
+                  <div className="last-min-item-main">
+                    <div className="last-min-item-status-icon">
+                      {status === 'done' ? (
+                        <CheckCircle2 className="w-4 h-4" style={{ color: '#4ADE80' }} />
+                      ) : status === 'revise' ? (
+                        <AlertCircle className="w-4 h-4" style={{ color: '#FCD34D' }} />
+                      ) : (
+                        <Circle className="w-4 h-4" style={{ color: '#64748B' }} />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="last-min-lc">#{q.leetcodeId}</span>
+                        <span className={`badge badge-${q.difficulty.toLowerCase()}`}>{q.difficulty}</span>
+                      </div>
+                      <a
+                        href={getPrepQuestionUrl(q)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="last-min-title"
+                      >
+                        {q.title}
+                        <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2} />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="last-min-item-actions">
+                    <button
+                      type="button"
+                      className={`last-min-status-btn ${status === 'done' ? 'is-active-done' : ''}`}
+                      onClick={() => setStatus(q.leetcodeId, status === 'done' ? 'todo' : 'done')}
+                    >
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      className={`last-min-status-btn ${status === 'revise' ? 'is-active-revise' : ''}`}
+                      onClick={() => setStatus(q.leetcodeId, status === 'revise' ? 'todo' : 'revise')}
+                    >
+                      Revise
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="glass-panel p-5 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
