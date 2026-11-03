@@ -93,7 +93,7 @@ export function LastMinPrepPanel({
     [categories]
   );
   const dailyPicks = useMemo(
-    () => (showDailyPicks ? getDailyPicks(uniqueQuestions, 4) : []),
+    () => (showDailyPicks ? getDailyPicks(uniqueQuestions, 2) : []),
     [showDailyPicks, uniqueQuestions]
   );
   const uniqueTotal = uniqueQuestions.length;
@@ -189,7 +189,7 @@ export function LastMinPrepPanel({
               <Dices className="w-4 h-4" style={{ color: accent }} strokeWidth={1.75} />
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">Today's 4 picks</h3>
+              <h3 className="font-semibold text-white text-sm">Today's 2 picks</h3>
               <p className="text-xs" style={{ color: '#64748B' }}>
                 A fresh random set every day — same picks all day, new ones tomorrow.
               </p>
