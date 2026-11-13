@@ -1,7 +1,8 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { HrContact, emptyHrContact } from '@/lib/hr-contacts';
-import { Users, Plus, Trash2, Download } from 'lucide-react';
+import { Users, Plus, Trash2, Download, ExternalLink, Search, X } from 'lucide-react';
 
 interface HrContactsPanelProps {
   userId: string;
@@ -9,11 +10,13 @@ interface HrContactsPanelProps {
   onContactsChange: (contacts: HrContact[]) => void;
 }
 
-function parseList(value: string): string[] {
-  return value
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
+type ListField = 'phones' | 'emails';
+
+/** Adds a protocol so a bare "linkedin.com/in/xyz" paste still opens correctly. */
+function normalizeLinkedinUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function downloadAsExcel(contacts: HrContact[]) {
@@ -21,7 +24,14 @@ function downloadAsExcel(contacts: HrContact[]) {
   const lines = [
     headers.join(','),
     ...contacts.map((c) =>
-      [c.name, c.linkedin, c.phones.join('; '), c.emails.join('; '), c.role, c.company]
+      [
+        c.name,
+        c.linkedin,
+        c.phones.filter(Boolean).join('; '),
+        c.emails.filter(Boolean).join('; '),
+        c.role,
+        c.company,
+      ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(',')
     ),
@@ -35,7 +45,44 @@ function downloadAsExcel(contacts: HrContact[]) {
   URL.revokeObjectURL(url);
 }
 
+const ALL = 'all';
+
 export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContactsPanelProps) {
+  const [search, setSearch] = useState('');
+  const [companyFilter, setCompanyFilter] = useState(ALL);
+  const [roleFilter, setRoleFilter] = useState(ALL);
+
+  const companyOptions = useMemo(
+    () => Array.from(new Set(contacts.map((c) => c.company.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [contacts]
+  );
+  const roleOptions = useMemo(
+    () => Array.from(new Set(contacts.map((c) => c.role.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [contacts]
+  );
+
+  const filteredContacts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return contacts.filter((c) => {
+      if (companyFilter !== ALL && c.company !== companyFilter) return false;
+      if (roleFilter !== ALL && c.role !== roleFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        c.name,
+        c.company,
+        c.role,
+        c.linkedin,
+        c.phones.filter(Boolean).join(' '),
+        c.emails.filter(Boolean).join(' '),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [contacts, search, companyFilter, roleFilter]);
+
+  const isFiltered = search.trim() !== '' || companyFilter !== ALL || roleFilter !== ALL;
+
   const update = (id: string, patch: Partial<HrContact>) => {
     onContactsChange(
       contacts.map((c) =>
@@ -50,6 +97,28 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
 
   const deleteRow = (id: string) => {
     onContactsChange(contacts.filter((c) => c.id !== id));
+  };
+
+  const setListItem = (id: string, field: ListField, idx: number, value: string) => {
+    const current = contacts.find((c) => c.id === id);
+    if (!current) return;
+    const list = current[field].length ? [...current[field]] : [''];
+    list[idx] = value;
+    update(id, { [field]: list });
+  };
+
+  const addListItem = (id: string, field: ListField) => {
+    const current = contacts.find((c) => c.id === id);
+    if (!current) return;
+    const list = current[field].length ? [...current[field]] : [''];
+    update(id, { [field]: [...list, ''] });
+  };
+
+  const removeListItem = (id: string, field: ListField, idx: number) => {
+    const current = contacts.find((c) => c.id === id);
+    if (!current) return;
+    const list = current[field].filter((_, i) => i !== idx);
+    update(id, { [field]: list });
   };
 
   return (
@@ -86,10 +155,71 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
             </button>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          <div className="relative flex-1" style={{ minWidth: 220 }}>
+            <Search
+              className="w-3.5 h-3.5 absolute top-1/2 -translate-y-1/2"
+              style={{ left: 12, color: '#64748B' }}
+              strokeWidth={2}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, company, role, LinkedIn, phone, email…"
+              className="glass-input w-full py-2 text-sm"
+              style={{ borderRadius: 12, padding: '8px 14px 8px 34px' }}
+            />
+          </div>
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="glass-input text-sm py-1.5 px-3 rounded-full"
+            style={{ maxWidth: 200 }}
+            aria-label="Filter by company"
+          >
+            <option value={ALL}>All companies</option>
+            {companyOptions.map((company) => (
+              <option key={company} value={company}>
+                {company}
+              </option>
+            ))}
+          </select>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="glass-input text-sm py-1.5 px-3 rounded-full"
+            style={{ maxWidth: 200 }}
+            aria-label="Filter by role"
+          >
+            <option value={ALL}>All roles</option>
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {isFiltered && (
+          <p className="text-xs mt-3" style={{ color: '#94A3B8' }}>
+            Showing <strong className="text-white tabular-nums">{filteredContacts.length}</strong> of {contacts.length} contacts
+          </p>
+        )}
       </div>
 
       <div className="glass-panel p-3 overflow-x-auto">
         <table className="hr-contacts-table">
+          <colgroup>
+            <col style={{ width: 180 }} />
+            <col style={{ width: 240 }} />
+            <col style={{ width: 220 }} />
+            <col style={{ width: 240 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 48 }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Name</th>
@@ -102,7 +232,7 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
             </tr>
           </thead>
           <tbody>
-            {contacts.map((c) => (
+            {filteredContacts.map((c) => (
               <tr key={c.id}>
                 <td>
                   <input
@@ -114,31 +244,93 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
                   />
                 </td>
                 <td>
-                  <input
-                    type="text"
-                    value={c.linkedin}
-                    onChange={(e) => update(c.id, { linkedin: e.target.value })}
-                    placeholder="linkedin.com/in/…"
-                    className="hr-cell-input"
-                  />
+                  <div className="hr-linkedin-cell">
+                    <input
+                      type="text"
+                      value={c.linkedin}
+                      onChange={(e) => update(c.id, { linkedin: e.target.value })}
+                      placeholder="linkedin.com/in/…"
+                      className="hr-cell-input"
+                    />
+                    {c.linkedin.trim() && (
+                      <a
+                        href={normalizeLinkedinUrl(c.linkedin)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="goal-note-action-btn"
+                        aria-label="Open LinkedIn profile"
+                        title="Open LinkedIn profile"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
+                      </a>
+                    )}
+                  </div>
                 </td>
                 <td>
-                  <input
-                    type="text"
-                    value={c.phones.join(', ')}
-                    onChange={(e) => update(c.id, { phones: parseList(e.target.value) })}
-                    placeholder="+91 9xxxxxxxxx, +91 8xxxxxxxxx"
-                    className="hr-cell-input"
-                  />
+                  <div className="hr-multi-cell">
+                    {(c.phones.length ? c.phones : ['']).map((phone, idx) => (
+                      <div key={idx} className="hr-multi-row">
+                        <input
+                          type="text"
+                          value={phone}
+                          onChange={(e) => setListItem(c.id, 'phones', idx, e.target.value)}
+                          placeholder="+91 9xxxxxxxxx"
+                          className="hr-cell-input"
+                        />
+                        {c.phones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeListItem(c.id, 'phones', idx)}
+                            className="hr-multi-remove-btn"
+                            aria-label="Remove phone number"
+                          >
+                            <X className="w-3 h-3" strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addListItem(c.id, 'phones')}
+                      className="hr-add-value-btn"
+                    >
+                      <Plus className="w-3 h-3" strokeWidth={2.5} />
+                      Add number
+                    </button>
+                  </div>
                 </td>
                 <td>
-                  <input
-                    type="text"
-                    value={c.emails.join(', ')}
-                    onChange={(e) => update(c.id, { emails: parseList(e.target.value) })}
-                    placeholder="a@x.com, b@y.com"
-                    className="hr-cell-input"
-                  />
+                  <div className="hr-multi-cell">
+                    {(c.emails.length ? c.emails : ['']).map((email, idx) => (
+                      <div key={idx} className="hr-multi-row">
+                        <input
+                          type="text"
+                          value={email}
+                          onChange={(e) => setListItem(c.id, 'emails', idx, e.target.value)}
+                          placeholder="name@company.com"
+                          className="hr-cell-input"
+                        />
+                        {c.emails.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeListItem(c.id, 'emails', idx)}
+                            className="hr-multi-remove-btn"
+                            aria-label="Remove email"
+                          >
+                            <X className="w-3 h-3" strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addListItem(c.id, 'emails')}
+                      className="hr-add-value-btn"
+                    >
+                      <Plus className="w-3 h-3" strokeWidth={2.5} />
+                      Add email
+                    </button>
+                  </div>
                 </td>
                 <td>
                   <input
@@ -170,10 +362,12 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
                 </td>
               </tr>
             ))}
-            {contacts.length === 0 && (
+            {filteredContacts.length === 0 && (
               <tr>
                 <td colSpan={7} className="hr-empty-row">
-                  No HR contacts yet — click &ldquo;Add row&rdquo; to start.
+                  {contacts.length === 0
+                    ? 'No HR contacts yet — click "Add row" to start.'
+                    : 'No contacts match your search/filters.'}
                 </td>
               </tr>
             )}
