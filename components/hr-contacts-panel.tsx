@@ -212,12 +212,12 @@ export function HrContactsPanel({ userId, contacts, onContactsChange }: HrContac
       <div className="glass-panel p-3 overflow-x-auto">
         <table className="hr-contacts-table">
           <colgroup>
-            <col style={{ width: 180 }} />
-            <col style={{ width: 240 }} />
+            <col style={{ width: 190 }} />
+            <col style={{ width: 250 }} />
             <col style={{ width: 220 }} />
-            <col style={{ width: 240 }} />
-            <col style={{ width: 170 }} />
-            <col style={{ width: 170 }} />
+            <col style={{ width: 250 }} />
+            <col style={{ width: 200 }} />
+            <col style={{ width: 230 }} />
             <col style={{ width: 48 }} />
           </colgroup>
           <thead>

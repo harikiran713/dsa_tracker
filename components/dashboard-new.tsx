@@ -980,7 +980,7 @@ export function DashboardNew() {
           </nav>
         </aside>
 
-        <div className="workspace-main">
+        <div className={`workspace-main ${activeTab === 'hrcontacts' ? 'workspace-main--wide' : ''}`}>
           <header className="workspace-page-header">
             <h1 className="workspace-page-title">{activeMeta.title}</h1>
             <p className="workspace-page-subtitle">{activeMeta.subtitle}</p>

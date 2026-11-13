@@ -1177,6 +1177,10 @@ body.workspace-nav-locked {
     padding: 1.75rem 2rem 3rem;
     max-width: 1120px;
   }
+
+  .workspace-main--wide {
+    max-width: none;
+  }
 }
 
 .workspace-page-header {
@@ -1630,7 +1634,7 @@ body.workspace-nav-locked {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  min-width: 1260px;
+  min-width: 1388px;
 }
 
 .hr-contacts-table th {
