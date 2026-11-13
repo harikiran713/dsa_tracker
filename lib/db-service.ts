@@ -39,6 +39,7 @@ import {
   saveDesignPrepProgress,
 } from './design-prep';
 import { GoalNote, loadGoalNotes, saveGoalNotes } from './goal-notes';
+import { HrContact, loadHrContacts, saveHrContacts } from './hr-contacts';
 import {
   AllCompanyPrepProgress,
   loadAllCompanyPrepProgress,
@@ -218,6 +219,18 @@ function mergeTodos(local: DailyTodoItem[], remote: DailyTodoItem[]): DailyTodoI
 
 function mergeGoalNotes(local: GoalNote[], remote: GoalNote[]): GoalNote[] {
   const merged = new Map<string, GoalNote>();
+  for (const item of remote) merged.set(item.id, item);
+  for (const item of local) {
+    const existing = merged.get(item.id);
+    if (!existing || item.updated_at >= existing.updated_at) {
+      merged.set(item.id, item);
+    }
+  }
+  return [...merged.values()];
+}
+
+function mergeHrContacts(local: HrContact[], remote: HrContact[]): HrContact[] {
+  const merged = new Map<string, HrContact>();
   for (const item of remote) merged.set(item.id, item);
   for (const item of local) {
     const existing = merged.get(item.id);
@@ -863,6 +876,35 @@ export async function syncGoalNotesToDb(
   await apiJson<{ ok: boolean }>('/api/goal-notes', {
     method: 'PUT',
     body: JSON.stringify({ userId, notes }),
+  });
+}
+
+/** `username` is required so the API can confirm the caller is the owner — see lib/owner.ts. */
+export async function loadHrContactsFromDb(
+  userId: string,
+  username: string
+): Promise<HrContact[]> {
+  const local = loadHrContacts(userId);
+  if (!isOnlineUserId(userId)) return local;
+
+  const remote =
+    (await apiJson<HrContact[]>(
+      `/api/hr-contacts?userId=${encodeURIComponent(userId)}&owner=${encodeURIComponent(username)}`
+    )) ?? [];
+  const merged = mergeHrContacts(local, remote);
+  saveHrContacts(userId, merged);
+  return merged;
+}
+
+export async function syncHrContactsToDb(
+  userId: string,
+  username: string,
+  contacts: HrContact[]
+): Promise<void> {
+  if (!isOnlineUserId(userId)) return;
+  await apiJson<{ ok: boolean }>('/api/hr-contacts', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, owner: username, contacts }),
   });
 }
 

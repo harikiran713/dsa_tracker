@@ -43,6 +43,8 @@ import {
   syncDesignPrepToDb,
   loadGoalNotesFromDb,
   syncGoalNotesToDb,
+  loadHrContactsFromDb,
+  syncHrContactsToDb,
   loadAllCompanyPrepFromDb,
   syncAllCompanyPrepToDb,
 } from '@/lib/db-service';
@@ -99,6 +101,9 @@ import {
 } from '@/lib/design-prep';
 import { GoalNote, loadGoalNotes, saveGoalNotes } from '@/lib/goal-notes';
 import { GoalNotesPanel } from './goal-notes-panel';
+import { HrContact, saveHrContacts } from '@/lib/hr-contacts';
+import { HrContactsPanel } from './hr-contacts-panel';
+import { isOwnerUsername } from '@/lib/owner';
 import {
   LeetCodeSyncResult,
   loadLeetCodeSync,
@@ -120,14 +125,14 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
-  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target, Building2,
+  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target, Building2, Users,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
 type FilterDifficulty = 'all' | 'Easy' | 'Medium' | 'Hard';
 type FilterLeetCode   = 'all' | 'unsolved' | 'solved';
 type FilterTopic      = string;
-type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'allcompany' | 'design' | 'goalnotes' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
+type MainTab = 'problems' | 'todos' | 'day100' | 'lastmin' | 'amazon' | 'amazontweak' | 'google' | 'allcompany' | 'design' | 'goalnotes' | 'hrcontacts' | 'cplearning' | 'lld' | 'profile' | 'analytics' | 'leaderboard';
 
 const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string; subtitle: string }[] = [
   {
@@ -201,6 +206,13 @@ const NAV_ITEMS: { id: MainTab; label: string; icon: typeof Code2; title: string
     subtitle: 'Private notes for future goals and plans.',
   },
   {
+    id: 'hrcontacts',
+    label: 'HR Contacts',
+    icon: Users,
+    title: 'HR Contacts',
+    subtitle: 'Private HR contact list — name, LinkedIn, phone(s), email(s), role, company.',
+  },
+  {
     id: 'cplearning',
     label: 'CP Learning',
     icon: Cpu,
@@ -261,6 +273,7 @@ export function DashboardNew() {
   const [designPrep, setDesignPrep] = useState<DesignPrepProgress[]>([]);
   const [allCompanyPrep, setAllCompanyPrep] = useState<AllCompanyPrepProgress[]>([]);
   const [goalNotes, setGoalNotes] = useState<GoalNote[]>([]);
+  const [hrContacts, setHrContacts] = useState<HrContact[]>([]);
   const [lldProgress, setLldProgress] = useState<LldProgress[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<MainTab>>(new Set());
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -416,6 +429,11 @@ export function DashboardNew() {
     setGoalNotes(data);
   };
 
+  const loadHrContactsData = async (userId: string, username: string) => {
+    const data = await loadHrContactsFromDb(userId, username);
+    setHrContacts(data);
+  };
+
   const loadAnalyticsData = async (userId: string) => {
     const events = dedupeCompletionEvents(loadCompletionEvents(userId));
     saveCompletionEvents(userId, events);
@@ -449,6 +467,7 @@ export function DashboardNew() {
         setDesignPrep([]);
         setAllCompanyPrep([]);
         setGoalNotes([]);
+        setHrContacts([]);
         setLldProgress([]);
         setLoadedTabs(new Set(['problems', 'day100']));
         setReminderEnabled(getInitialReminderEnabled(user.id));
@@ -517,6 +536,15 @@ export function DashboardNew() {
     if (activeTab === 'goalnotes' && !loadedTabs.has('goalnotes')) {
       setLoadedTabs((prev) => new Set(prev).add('goalnotes'));
       void loadGoalNotesData(currentUser.id);
+    }
+
+    if (
+      activeTab === 'hrcontacts' &&
+      !loadedTabs.has('hrcontacts') &&
+      isOwnerUsername(currentUser.username)
+    ) {
+      setLoadedTabs((prev) => new Set(prev).add('hrcontacts'));
+      void loadHrContactsData(currentUser.id, currentUser.username);
     }
 
     if (activeTab === 'cplearning' && !loadedTabs.has('cplearning')) {
@@ -651,6 +679,13 @@ export function DashboardNew() {
     void syncGoalNotesToDb(currentUser.id, rows);
   }, [currentUser]);
 
+  const handleHrContactsChange = useCallback((rows: HrContact[]) => {
+    if (!currentUser || !isOwnerUsername(currentUser.username)) return;
+    setHrContacts(rows);
+    saveHrContacts(currentUser.id, rows);
+    void syncHrContactsToDb(currentUser.id, currentUser.username, rows);
+  }, [currentUser]);
+
   const handleNotesChange = useCallback(async (questionId: string, notes: string) => {
     if (!currentUser) return;
     const numId = parseInt(questionId.split('-')[1]);
@@ -694,6 +729,7 @@ export function DashboardNew() {
     setDesignPrep([]);
     setAllCompanyPrep([]);
     setGoalNotes([]);
+    setHrContacts([]);
     setLldProgress([]);
     setLeetcodeSync(null);
     setLoadedTabs(new Set());
@@ -815,7 +851,10 @@ export function DashboardNew() {
     return <AdminUsersPanel onLogout={handleLogout} />;
   }
 
-  const activeMeta = NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0];
+  const visibleNavItems = isOwnerUsername(currentUser.username)
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.id !== 'hrcontacts');
+  const activeMeta = visibleNavItems.find((item) => item.id === activeTab) ?? visibleNavItems[0];
 
   const statCards = [
     {
@@ -852,7 +891,7 @@ export function DashboardNew() {
 
   const navButtons = (
     <>
-      {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+      {visibleNavItems.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
           type="button"
@@ -1065,6 +1104,14 @@ export function DashboardNew() {
               userId={currentUser.id}
               notes={goalNotes}
               onNotesChange={handleGoalNotesChange}
+            />
+          )}
+
+          {activeTab === 'hrcontacts' && currentUser && isOwnerUsername(currentUser.username) && (
+            <HrContactsPanel
+              userId={currentUser.id}
+              contacts={hrContacts}
+              onContactsChange={handleHrContactsChange}
             />
           )}
 
