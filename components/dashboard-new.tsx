@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { initializeQuestions, mixQuestionsByDifficulty, Question } from '@/lib/questions';
 import { LoginScreen } from './login-screen';
 import { VirtualQuestionGrid } from './virtual-question-grid';
+import { QuestionCard } from './question-card';
+import { getDailyProblemPicks } from '@/lib/daily-problem-picks';
 import { DailyTodoPanel } from './daily-todo-panel';
 import { DayTrackerPanel, DayTrackerSyncStatus } from './day-tracker-panel';
 import { LastMinPrepPanel } from './last-min-prep-panel';
@@ -125,7 +127,7 @@ import { getInitialReminderEnabled } from './daily-todo-reminder-controls';
 import {
   Search, LogOut, Code2, BarChart3, CheckCircle2,
   AlertCircle, ListTodo, TrendingUp, Trophy, CalendarDays, Rocket, Boxes, Cpu, UserRound,
-  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target, Building2, Users,
+  Menu, X, Circle, Package, PackageSearch, Globe, Layers, Target, Building2, Users, Dices,
 } from 'lucide-react';
 
 type FilterStatus     = 'all' | 'done' | 'revise';
@@ -792,6 +794,11 @@ export function DashboardNew() {
     [leetcodeSync]
   );
 
+  const dailyProblemPicks = useMemo(
+    () => getDailyProblemPicks(questionsWithProgress, leetcodeSolvedSlugs),
+    [questionsWithProgress, leetcodeSolvedSlugs]
+  );
+
   const topicOptions = useMemo(
     () => Array.from(new Set(questionsWithProgress.map((q) => q.pattern))).sort((a, b) => a.localeCompare(b)),
     [questionsWithProgress]
@@ -1164,6 +1171,35 @@ export function DashboardNew() {
                 sync={leetcodeSync}
                 onSyncChange={setLeetcodeSync}
               />
+
+              {dailyProblemPicks.length > 0 && (
+                <div className="glass-panel p-5 mb-6" style={{ border: '1px solid rgba(56,189,248,0.35)' }}>
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(56,189,248,0.14)', border: '1px solid rgba(56,189,248,0.30)' }}
+                    >
+                      <Dices className="w-4 h-4" style={{ color: '#38BDF8' }} strokeWidth={1.75} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white text-sm">Today&rsquo;s 4 picks</h3>
+                      <p className="text-xs" style={{ color: '#64748B' }}>
+                        A fresh random mix every day — mostly from what you haven&rsquo;t solved on LeetCode yet.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="question-grid">
+                    {dailyProblemPicks.map((q) => (
+                      <QuestionCard
+                        key={q.id}
+                        question={q}
+                        onStatusChange={handleStatusChange}
+                        onNotesChange={handleNotesChange}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="problems-toolbar glass-panel mb-6">
                 <div className="problems-stats">
